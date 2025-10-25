@@ -1,0 +1,167 @@
+/* src/index.css - REFINED WINTER CHILL DESIGN */
+
+/* Root Variables - Consistent Winter Chill Color System */
+:root {
+  /* Winter Chill Primary Colors (from image) */
+  --color-ice-light: #B8E3E9;
+  --color-ice-medium: #93B1B5;
+  --color-teal-medium: #4F7C82;
+  --color-teal-dark: #0B2E33;
+
+  /* Extended Palette */
+  --color-white: #FFFFFF;
+  --color-off-white: #F8FAFB;
+  --color-light-gray: #E8EDED;
+  --color-medium-gray: #C2CCCF;
+  --color-dark-gray: #4A5759;
+  --color-text-primary: #2C3E40;
+  --color-text-secondary: #5A6D70;
+
+  /* Semantic Colors */
+  --color-success: #6BC4A6;
+  --color-danger: #E57373;
+  --color-warning: #FFB74D;
+  --color-info: #64B5F6;
+
+  /* Subtle Gradients - No animation */
+  --gradient-primary: linear-gradient(135deg, #B8E3E9 0%, #93B1B5 100%);
+  --gradient-teal: linear-gradient(135deg, #4F7C82 0%, #0B2E33 100%);
+  --gradient-subtle: linear-gradient(180deg, #F8FAFB 0%, #E8EDED 100%);
+
+  /* Shadows - Subtle */
+  --shadow-sm: 0 1px 3px rgba(11, 46, 51, 0.08);
+  --shadow-md: 0 2px 8px rgba(11, 46, 51, 0.10);
+  --shadow-lg: 0 4px 16px rgba(11, 46, 51, 0.12);
+
+  /* Transitions */
+  --transition-fast: all 0.2s ease;
+  --transition-smooth: all 0.3s ease;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: var(--color-off-white);
+  color: var(--color-text-primary);
+  min-height: 100vh;
+}
+
+code {
+  font-family: 'Fira Code', source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
+}
+
+/* Remove all animations and floating effects */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Subtle hover effects */
+button:hover,
+.interactive:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+button:active,
+.interactive:active {
+  transform: translateY(0);
+}
+
+/* Custom scrollbar - Winter Chill theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-light-gray);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-teal-medium);
+  border-radius: 4px;
+  border: 2px solid var(--color-light-gray);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-teal-dark);
+}
+
+/* Modern focus states */
+*:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(79, 124, 130, 0.2);
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--color-teal-medium);
+  box-shadow: 0 0 0 3px rgba(79, 124, 130, 0.15);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  body {
+    font-size: 14px;
+  }
+
+  table {
+    font-size: 12px;
+  }
+
+  th, td {
+    padding: 8px 4px !important;
+  }
+}
+
+/* Utility classes */
+.fade-in {
+  animation: fadeIn 0.4s ease-out;
+}
+
+/* Card styling */
+.card {
+  background: var(--color-white);
+  border: 1px solid var(--color-light-gray);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  transition: var(--transition-smooth);
+}
+
+.card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+/* Text utilities */
+.text-success {
+  color: var(--color-success);
+}
+
+.text-danger {
+  color: var(--color-danger);
+}
+
+.text-warning {
+  color: var(--color-warning);
+}
+
+.text-info {
+  color: var(--color-info);
+}
