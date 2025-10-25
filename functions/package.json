@@ -1,6 +1,5 @@
 {
   "name": "functions",
-  "homepage": "https://YOUR-USERNAME.github.io/mutual-fund-tracker",
   "description": "Cloud Functions for Mutual Fund Tracker",
   "scripts": {
     "serve": "firebase emulators:start --only functions",
@@ -21,7 +20,5 @@
   "devDependencies": {
     "firebase-functions-test": "^3.1.0"
   },
-  "private": true,
-  "predeploy": "npm run build",
-  "deploy": "gh-pages -d build"
+  "private": true
 }

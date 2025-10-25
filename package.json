@@ -2,6 +2,7 @@
   "name": "mutual-fund-tracker-firebase",
   "version": "1.0.0",
   "private": true,
+  "homepage": "https://YOUR-USERNAME.github.io/mutual-fund-tracker",
   "dependencies": {
     "firebase": "^10.7.1",
     "react": "^18.2.0",
