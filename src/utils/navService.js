@@ -1,121 +1,99 @@
-// src/utils/navService.js
-// Service to fetch and manage NAV data from AMFI India
+// src/utils/navService.js - UPDATED TO USE CLOUD FUNCTION ONLY
+import { getStoredNAV } from './firebaseService';
 
-const AMFI_NAV_URL = 'https://portal.amfiindia.com/spages/NAVAll.txt';
-
-// Use CORS proxy for development (replace with Firebase Cloud Function in production)
-const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+// Base URL for cloud functions
+const CLOUD_FUNCTION_BASE = 'https://us-central1-mutual-fund-tracker-d93c4.cloudfunctions.net';
 
 /**
- * Fetch and parse AMFI NAV data
- * Returns map of schemeCode -> NAV data
+ * Fetch initial NAV for a scheme code when adding new investment
+ * This gets the LATEST NAV from the cloud function
  */
-export const fetchAllNAVData = async () => {
+export const fetchInitialNAV = async (schemeCode) => {
   try {
-    console.log('Fetching NAV data from AMFI...');
-
-    const response = await fetch(CORS_PROXY + encodeURIComponent(AMFI_NAV_URL));
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    console.log(`Fetching initial NAV for scheme ${schemeCode}...`);
+    
+    // First, check if we have stored NAV data
+    const storedNav = await getStoredNAV(schemeCode);
+    
+    if (storedNav && storedNav.currentNAV) {
+      console.log(`Found stored NAV: ₹${storedNav.currentNAV} (${storedNav.navDate})`);
+      return {
+        nav: storedNav.currentNAV,
+        date: storedNav.navDate,
+        schemeName: storedNav.schemeName || 'Unknown Fund'
+      };
     }
-
-    const text = await response.text();
-    const navData = parseAMFIData(text);
-
-    console.log(`Fetched NAV data for ${Object.keys(navData).length} schemes`);
-    return navData;
-  } catch (error) {
-    console.error('Error fetching AMFI NAV data:', error);
-    throw error;
-  }
-};
-
-/**
- * Parse AMFI NAV text file
- * Format: Scheme Code;ISIN;ISIN2;Scheme Name;NAV;Date
- */
-const parseAMFIData = (text) => {
-  const lines = text.split('\n');
-  const navData = {};
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-
-    // Skip empty lines and header
-    if (!trimmed || trimmed.startsWith('Scheme Code')) {
-      continue;
-    }
-
-    const parts = trimmed.split(';');
-
-    if (parts.length >= 5) {
-      const schemeCode = parts[0].trim();
-      const schemeName = parts[2] ? parts[2].trim() : (parts[3] ? parts[3].trim() : '');
-      const navValue = parts[parts.length - 2].trim();
-      const date = parts[parts.length - 1].trim();
-
-      if (schemeCode && navValue && navValue !== '-' && !isNaN(parseFloat(navValue))) {
-        navData[schemeCode] = {
-          schemeCode,
-          schemeName,
-          nav: parseFloat(navValue),
-          date: date,
-          lastUpdated: new Date().toISOString()
+    
+    // If no stored NAV, trigger manual update to fetch latest
+    console.log('No stored NAV found, fetching latest from AMFI via cloud function...');
+    
+    const response = await fetch(`${CLOUD_FUNCTION_BASE}/manualUpdateNAV`);
+    const result = await response.json();
+    
+    if (result.success) {
+      // After update, get the stored NAV again
+      const updatedNav = await getStoredNAV(schemeCode);
+      
+      if (updatedNav && updatedNav.currentNAV) {
+        console.log(`✅ Fetched latest NAV: ₹${updatedNav.currentNAV} (${updatedNav.navDate})`);
+        return {
+          nav: updatedNav.currentNAV,
+          date: updatedNav.navDate,
+          schemeName: updatedNav.schemeName || 'Unknown Fund'
         };
       }
     }
-  }
-
-  return navData;
-};
-
-/**
- * Get NAV for a specific scheme code
- */
-export const getNAVBySchemeCode = async (schemeCode) => {
-  try {
-    const allData = await fetchAllNAVData();
-
-    if (allData[schemeCode]) {
-      return allData[schemeCode];
-    } else {
-      console.warn(`Scheme code ${schemeCode} not found in AMFI data`);
-      return null;
-    }
+    
+    // Fallback: return null if still not found
+    console.warn(`⚠️ Could not fetch NAV for scheme ${schemeCode}`);
+    return null;
+    
   } catch (error) {
-    console.error(`Error getting NAV for scheme ${schemeCode}:`, error);
+    console.error('Error fetching initial NAV:', error);
     return null;
   }
 };
 
 /**
- * Get NAV for multiple scheme codes (bulk fetch)
+ * Get current NAV for a scheme code (from stored data only)
  */
-export const getBulkNAV = async (schemeCodes) => {
+export const getCurrentNAV = async (schemeCode) => {
   try {
-    const allData = await fetchAllNAVData();
-    const result = {};
-
-    for (const code of schemeCodes) {
-      if (allData[code]) {
-        result[code] = allData[code];
-      } else {
-        console.warn(`Scheme code ${code} not found`);
-      }
+    const storedNav = await getStoredNAV(schemeCode);
+    
+    if (storedNav && storedNav.currentNAV) {
+      return {
+        nav: storedNav.currentNAV,
+        date: storedNav.navDate,
+        schemeName: storedNav.schemeName || 'Unknown Fund'
+      };
     }
-
-    return result;
+    
+    return null;
   } catch (error) {
-    console.error('Error getting bulk NAV data:', error);
-    return {};
+    console.error('Error getting current NAV:', error);
+    return null;
   }
 };
 
 /**
- * Fetch NAV on first entry (called when adding new investment)
+ * Refresh all NAVs using cloud function
  */
-export const fetchInitialNAV = async (schemeCode) => {
-  console.log(`Fetching initial NAV for scheme ${schemeCode}...`);
-  return await getNAVBySchemeCode(schemeCode);
+export const refreshAllNAVs = async () => {
+  try {
+    console.log('🔄 Refreshing all NAVs via cloud function...');
+    
+    const response = await fetch(`${CLOUD_FUNCTION_BASE}/manualUpdateNAV`);
+    const result = await response.json();
+    
+    if (result.success) {
+      console.log(`✅ Successfully updated ${result.updatedCount} NAVs`);
+      return result;
+    } else {
+      throw new Error(result.error || 'Failed to refresh NAVs');
+    }
+  } catch (error) {
+    console.error('Error refreshing NAVs:', error);
+    throw error;
+  }
 };
