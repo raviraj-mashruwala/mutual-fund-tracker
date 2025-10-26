@@ -65,7 +65,6 @@ function App() {
       if (result.success) {
         await loadInvestments();
         setLastRefreshTime(new Date());
-        alert(`✅ NAV Updated Successfully!\n\nUpdated ${result.updatedCount} investment(s) with daily history tracking.`);
       } else {
         setError(`Failed to refresh NAV: ${result.error}`);
       }
@@ -84,7 +83,6 @@ function App() {
         navigate('/login');
       } catch (error) {
         console.error('Logout error:', error);
-        alert('Failed to logout. Please try again.');
       }
     }
   };
@@ -95,7 +93,6 @@ function App() {
       const newInvestment = await addInvestment(formData, currentUser.uid);
       setInvestments(prev => [...prev, newInvestment]);
       setShowForm(false);
-      alert('✅ Investment added successfully!');
     } catch (err) {
       setError('Failed to add investment.');
       console.error('Add error:', err);
@@ -111,7 +108,6 @@ function App() {
       ));
       setEditingInvestment(null);
       setShowForm(false);
-      alert('✅ Investment updated successfully!');
     } catch (err) {
       setError('Failed to update investment.');
       console.error('Update error:', err);
@@ -127,7 +123,6 @@ function App() {
       setError(null);
       await deleteInvestment(id, currentUser.uid);
       setInvestments(prev => prev.filter(inv => inv.id !== id));
-      alert('✅ Investment deleted successfully!');
     } catch (err) {
       setError('Failed to delete investment.');
       console.error('Delete error:', err);
