@@ -125,7 +125,7 @@ export const calculateFundMetrics = (investments) => {
     fundGroups[fundName].totalProfitLoss += metrics.netProfitLoss;
     fundGroups[fundName].holdingsCount += 1;
 
-    if (metrics.eligibleForLTCG === "Yes") {
+    if (metrics.eligibleForLTCG === "Yes" && metrics.decisionToSell !== "Already Sold") {
       fundGroups[fundName].ltcgEligibleCount += 1;
     }
 
