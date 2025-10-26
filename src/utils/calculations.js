@@ -177,7 +177,7 @@ export const calculatePortfolioMetrics = (investments) => {
   const totalProfitLoss = currentValue - totalInvestment;
   const totalReturnPercent = (totalProfitLoss / totalInvestment) * 100;
   const ltcgEligibleCount = metricsArray.filter(
-    (inv) => inv.eligibleForLTCG === "Yes"
+    (inv) => inv.eligibleForLTCG === "Yes" && inv.decisionToSell !== "Already Sold"
   ).length;
 
   return {
