@@ -1,4 +1,3 @@
-// functions/index.js - UPDATED
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const https = require('https');
@@ -6,74 +5,120 @@ const https = require('https');
 admin.initializeApp();
 const db = admin.firestore();
 
-// Fetch NAV data from AMFI
+// FIXED: Fetch NAV data from AMFI
 const fetchNAVFromAMFI = () => {
   return new Promise((resolve, reject) => {
-    const url = 'https://www.amfiindia.com/spages/NAVAll.txt';
+    // Use the correct AMFI URL (portal.amfiindia.com, not www)
+    const url = 'https://portal.amfiindia.com/spages/NAVAll.txt';
+    
+    console.log('📡 Fetching from:', url);
     
     https.get(url, (response) => {
       let data = '';
+      
       response.on('data', (chunk) => {
         data += chunk;
       });
       
       response.on('end', () => {
         try {
+          console.log(`📊 Received ${data.length} bytes of data`);
+          
           const lines = data.split('\n');
           const navData = {};
           let currentDate = null;
+          let linesParsed = 0;
+          let schemesFound = 0;
           
-          lines.forEach(line => {
+          lines.forEach((line, index) => {
             const trimmedLine = line.trim();
             
-            if (trimmedLine.includes(';')) {
-              const parts = trimmedLine.split(';');
-              if (parts.length >= 6 && parts[0] && parts[1] && parts[4]) {
-                const schemeCode = parts[0];
-                const schemeName = parts[3];
-                const nav = parseFloat(parts[4]);
-                
-                if (!isNaN(nav) && nav > 0) {
-                  navData[schemeCode] = {
-                    schemeName,
-                    nav,
-                    date: currentDate || new Date().toISOString().split('T')[0]
-                  };
-                }
-              }
-            } else if (trimmedLine.match(/^\d{2}-\w{3}-\d{4}$/)) {
-              const dateStr = trimmedLine;
-              const dateParts = dateStr.split('-');
-              const day = dateParts[0];
-              const month = dateParts[1];
-              const year = dateParts[2];
-              
+            // Skip empty lines
+            if (!trimmedLine) return;
+            
+            // Check for date line (format: DD-MMM-YYYY)
+            const dateMatch = trimmedLine.match(/^(\d{2})-([A-Za-z]{3})-(\d{4})$/);
+            if (dateMatch) {
+              const [_, day, monthStr, year] = dateMatch;
               const monthMap = {
                 'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04',
                 'May': '05', 'Jun': '06', 'Jul': '07', 'Aug': '08',
                 'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
               };
+              currentDate = `${year}-${monthMap[monthStr]}-${day}`;
+              console.log(`📅 Found date: ${currentDate}`);
+              return;
+            }
+            
+            // Parse NAV data lines (format: code;isin;name;name2;nav;date)
+            if (trimmedLine.includes(';')) {
+              const parts = trimmedLine.split(';');
               
-              currentDate = `${year}-${monthMap[month]}-${day}`;
+              // AMFI format: schemeCode;ISIN;SchemeISIN;SchemeName;NAV;ReportDate
+              if (parts.length >= 5) {
+                const schemeCode = parts[0].trim();
+                const schemeName = parts[3].trim();
+                const navValue = parseFloat(parts[4].trim());
+                
+                // Validate data
+                if (schemeCode && schemeName && !isNaN(navValue) && navValue > 0) {
+                  navData[schemeCode] = {
+                    schemeName: schemeName,
+                    nav: navValue,
+                    date: currentDate || new Date().toISOString().split('T')[0]
+                  };
+                  
+                  schemesFound++;
+                  
+                  // Log first few schemes for debugging
+                  if (schemesFound <= 5) {
+                    console.log(`✓ Scheme ${schemesFound}: ${schemeCode} - ${schemeName} = ₹${navValue}`);
+                  }
+                  
+                  // Special log for scheme 120847
+                  if (schemeCode === '120847') {
+                    console.log(`🎯 FOUND TARGET SCHEME! ${schemeCode} - ${schemeName} = ₹${navValue}`);
+                  }
+                }
+              }
+              linesParsed++;
             }
           });
           
+          console.log(`✅ Parsing complete:`);
+          console.log(`   - Total lines: ${lines.length}`);
+          console.log(`   - Lines parsed: ${linesParsed}`);
+          console.log(`   - Schemes found: ${schemesFound}`);
+          console.log(`   - Scheme 120847 in data: ${!!navData['120847']}`);
+          
+          if (schemesFound === 0) {
+            console.error('❌ ERROR: No schemes parsed! Data format may have changed.');
+            console.error('First 10 lines of data:');
+            lines.slice(0, 10).forEach((line, i) => {
+              console.error(`Line ${i}: ${line}`);
+            });
+          }
+          
           resolve(navData);
         } catch (error) {
+          console.error('❌ Error parsing AMFI data:', error);
           reject(error);
         }
       });
     }).on('error', (error) => {
+      console.error('❌ Error fetching AMFI data:', error);
       reject(error);
     });
   });
 };
 
-// Store NAV history
+// Helper: Store NAV history
 const storeNavHistory = async (schemeCode, schemeName, nav, date) => {
   try {
     const navDate = typeof date === 'string' ? date : date.toISOString().split('T')[0];
     const docId = `${schemeCode}_${navDate}`;
+    
+    const navDateObj = new Date(navDate);
     
     await db.collection('navHistory').doc(docId).set({
       schemeCode,
@@ -81,18 +126,18 @@ const storeNavHistory = async (schemeCode, schemeName, nav, date) => {
       nav: parseFloat(nav),
       date: navDate,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      year: new Date(navDate).getFullYear(),
-      month: new Date(navDate).getMonth() + 1,
-      yearMonth: `${new Date(navDate).getFullYear()}-${String(new Date(navDate).getMonth() + 1).padStart(2, '0')}`
+      year: navDateObj.getFullYear(),
+      month: navDateObj.getMonth() + 1,
+      yearMonth: `${navDateObj.getFullYear()}-${String(navDateObj.getMonth() + 1).padStart(2, '0')}`
     }, { merge: true });
+    
   } catch (error) {
     console.error('Error storing NAV history:', error);
   }
 };
 
-// Main manual update function - UPDATED TO ALSO UPDATE INVESTMENTS
+// MAIN FUNCTION: Manual NAV Update
 exports.manualUpdateNAV = functions.https.onRequest(async (req, res) => {
-  // Set CORS headers
   res.set('Access-Control-Allow-Origin', '*');
   res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.set('Access-Control-Allow-Headers', 'Content-Type');
@@ -103,30 +148,150 @@ exports.manualUpdateNAV = functions.https.onRequest(async (req, res) => {
   }
 
   try {
-    console.log('Starting manual NAV update...');
+    console.log('📊 Starting manual NAV update...');
     
-    // Fetch latest NAV data
+    // Step 1: Fetch NAV data
     const navData = await fetchNAVFromAMFI();
-    console.log(`Fetched NAV data for ${Object.keys(navData).length} schemes`);
+    const totalSchemes = Object.keys(navData).length;
+    console.log(`✅ Total schemes fetched: ${totalSchemes}`);
     
-    // Get all investments across all users
+    // Step 2: Check if scheme 120847 exists
+    console.log(`🔍 Looking for scheme 120847...`);
+    const has120847 = !!navData['120847'];
+    console.log(`📊 Scheme 120847 exists? ${has120847}`);
+    
+    if (navData['120847']) {
+      console.log(`✅ Scheme 120847 data: ${JSON.stringify(navData['120847'])}`);
+    }
+    
+    // Step 3: Get investments
     const investmentsSnapshot = await db.collection('investments').get();
+    console.log(`📂 Found ${investmentsSnapshot.size} investments`);
     
+    if (investmentsSnapshot.empty) {
+      return res.json({
+        success: true,
+        message: 'No investments found',
+        updatedCount: 0,
+        totalSchemesFetched: totalSchemes,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const investmentsList = [];
+    investmentsSnapshot.forEach(doc => {
+      const data = doc.data();
+      investmentsList.push({ id: doc.id, ...data });
+      console.log(`💼 Investment: ${data.fundName}, Scheme: ${data.schemeCode}`);
+    });
+    
+    // Step 4: Update investments
     let updatedCount = 0;
-    let investmentUpdatedCount = 0;
     const batch = db.batch();
+    const uniqueSchemeCodesUpdated = new Set();
     
-    // Process each investment
-    for (const investmentDoc of investmentsSnapshot.docs) {
-      const investment = investmentDoc.data();
+    for (const investment of investmentsList) {
       const schemeCode = investment.schemeCode;
+      console.log(`🔍 Checking scheme: ${schemeCode}`);
       
       if (schemeCode && navData[schemeCode]) {
         const { schemeName, nav, date } = navData[schemeCode];
+        console.log(`✅ MATCH! ${schemeName}: ₹${nav} on ${date}`);
         
-        // Update navData collection
-        const navRef = db.collection('navData').doc(schemeCode);
-        batch.set(navRef, {
+        batch.update(db.collection('investments').doc(investment.id), {
+          currentNAV: nav,
+          currentNAVDate: date,
+          navLastUpdated: admin.firestore.FieldValue.serverTimestamp()
+        });
+        
+        uniqueSchemeCodesUpdated.add(schemeCode);
+        updatedCount++;
+      } else {
+        console.log(`❌ NO MATCH for scheme ${schemeCode}`);
+      }
+    }
+    
+    await batch.commit();
+    console.log(`✅ Committed ${updatedCount} updates`);
+    
+    // Step 5: Store NAV data and history
+    for (const schemeCode of uniqueSchemeCodesUpdated) {
+      const { schemeName, nav, date } = navData[schemeCode];
+      
+      await db.collection('navData').doc(schemeCode).set({
+        schemeCode,
+        schemeName,
+        currentNAV: nav,
+        navDate: date,
+        lastUpdated: admin.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+      
+      await storeNavHistory(schemeCode, schemeName, nav, date);
+    }
+    
+    res.json({
+      success: true,
+      message: updatedCount > 0 ? `Updated ${updatedCount} investments` : 'No matching NAV data',
+      updatedCount,
+      totalInvestments: investmentsList.length,
+      totalSchemesFetched: totalSchemes,
+      scheme120847Exists: has120847,
+      sampleSchemes: Object.keys(navData).slice(0, 5),
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      stack: error.stack
+    });
+  }
+});
+
+// Scheduled update
+exports.scheduledNavUpdate = functions.pubsub
+  .schedule('0 18 * * 1-5')
+  .timeZone('Asia/Kolkata')
+  .onRun(async (context) => {
+    try {
+      const navData = await fetchNAVFromAMFI();
+      const investmentsSnapshot = await db.collection('investments').get();
+      
+      if (investmentsSnapshot.empty) {
+        console.log('No investments to update');
+        return null;
+      }
+      
+      let updatedCount = 0;
+      const batch = db.batch();
+      const uniqueSchemeCodes = new Set();
+      
+      investmentsSnapshot.forEach(doc => {
+        const investment = doc.data();
+        const schemeCode = investment.schemeCode;
+        
+        if (schemeCode && navData[schemeCode]) {
+          const { schemeName, nav, date } = navData[schemeCode];
+          
+          batch.update(doc.ref, {
+            currentNAV: nav,
+            currentNAVDate: date,
+            navLastUpdated: admin.firestore.FieldValue.serverTimestamp()
+          });
+          
+          uniqueSchemeCodes.add(schemeCode);
+          updatedCount++;
+        }
+      });
+      
+      await batch.commit();
+      
+      for (const schemeCode of uniqueSchemeCodes) {
+        const { schemeName, nav, date } = navData[schemeCode];
+        
+        await db.collection('navData').doc(schemeCode).set({
           schemeCode,
           schemeName,
           currentNAV: nav,
@@ -134,101 +299,14 @@ exports.manualUpdateNAV = functions.https.onRequest(async (req, res) => {
           lastUpdated: admin.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
         
-        // Update the INVESTMENT document with latest NAV ← THIS WAS MISSING!
-        const investmentRef = db.collection('investments').doc(investmentDoc.id);
-        batch.update(investmentRef, {
-          currentNAV: nav,
-          currentNAVDate: date,
-          navLastUpdated: admin.firestore.FieldValue.serverTimestamp()
-        });
-        
-        investmentUpdatedCount++;
-        updatedCount++;
-      }
-    }
-    
-    // Commit all updates at once
-    await batch.commit();
-    
-    // Store NAV history (done after batch for better performance)
-    for (const schemeCode in navData) {
-      if (navData.hasOwnProperty(schemeCode)) {
-        const { schemeName, nav, date } = navData[schemeCode];
         await storeNavHistory(schemeCode, schemeName, nav, date);
       }
-    }
-    
-    console.log(`Successfully updated ${updatedCount} investments with latest NAV`);
-    
-    res.json({
-      success: true,
-      message: `Updated ${updatedCount} NAV records and ${investmentUpdatedCount} investments`,
-      updatedCount: investmentUpdatedCount,
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('Error in manual NAV update:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-// Scheduled daily update
-exports.scheduledNavUpdate = functions.pubsub
-  .schedule('0 18 * * 1-5')
-  .timeZone('Asia/Kolkata')
-  .onRun(async (context) => {
-    try {
-      console.log('Starting scheduled NAV update...');
       
-      const navData = await fetchNAVFromAMFI();
-      
-      const investmentsSnapshot = await db.collection('investments').get();
-      
-      let updatedCount = 0;
-      const batch = db.batch();
-      
-      for (const investmentDoc of investmentsSnapshot.docs) {
-        const investment = investmentDoc.data();
-        const schemeCode = investment.schemeCode;
-        
-        if (schemeCode && navData[schemeCode]) {
-          const { schemeName, nav, date } = navData[schemeCode];
-          
-          // Update navData collection
-          const navRef = db.collection('navData').doc(schemeCode);
-          batch.set(navRef, {
-            schemeCode,
-            schemeName,
-            currentNAV: nav,
-            navDate: date,
-            lastUpdated: admin.firestore.FieldValue.serverTimestamp()
-          }, { merge: true });
-          
-          // Update investment with latest NAV ← THIS IS KEY
-          const investmentRef = db.collection('investments').doc(investmentDoc.id);
-          batch.update(investmentRef, {
-            currentNAV: nav,
-            currentNAVDate: date,
-            navLastUpdated: admin.firestore.FieldValue.serverTimestamp()
-          });
-          
-          updatedCount++;
-          
-          // Store history
-          await storeNavHistory(schemeCode, schemeName, nav, date);
-        }
-      }
-      
-      await batch.commit();
-      console.log(`Scheduled update completed: ${updatedCount} investments updated`);
-      
+      console.log(`Scheduled update: ${updatedCount} investments updated`);
       return null;
+      
     } catch (error) {
-      console.error('Error in scheduled NAV update:', error);
+      console.error('Scheduled update error:', error);
       return null;
     }
   });
