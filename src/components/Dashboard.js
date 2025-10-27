@@ -4,7 +4,7 @@ import { calculatePortfolioMetrics, calculateFundMetrics } from '../utils/calcul
 
 const Dashboard = ({ investments, viewMode }) => {
   const portfolioMetrics = calculatePortfolioMetrics(investments);
-  const fundMetrics = viewMode === 'grouped' ? calculateFundMetrics(investments) : [];
+  const fundMetrics = calculateFundMetrics(investments);
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('en-IN', {
@@ -91,7 +91,7 @@ const Dashboard = ({ investments, viewMode }) => {
       </div>
 
       {/* Fund Performance Cards */}
-      {viewMode === 'grouped' && fundMetrics.length > 0 && (
+      {fundMetrics.length > 0 && (
         <div style={styles.section}>
           <h3 style={styles.sectionTitle}>Top Performing Funds</h3>
           <div style={styles.fundGrid}>
@@ -128,7 +128,7 @@ const Dashboard = ({ investments, viewMode }) => {
       )}
 
       {/* Fund Allocation */}
-      {viewMode === 'grouped' && fundMetrics.length > 0 && (
+      {fundMetrics.length > 0 && (
         <div style={styles.section}>
           <h3 style={styles.sectionTitle}>Fund Allocation</h3>
           <div style={styles.allocationContainer}>
