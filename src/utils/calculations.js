@@ -125,7 +125,10 @@ export const calculateFundMetrics = (investments) => {
     fundGroups[fundName].totalProfitLoss += metrics.netProfitLoss;
     fundGroups[fundName].holdingsCount += 1;
 
-    if (metrics.eligibleForLTCG === "Yes" && metrics.decisionToSell !== "Already Sold") {
+    if (
+      metrics.eligibleForLTCG === "Yes" &&
+      metrics.decisionToSell !== "Already Sold"
+    ) {
       fundGroups[fundName].ltcgEligibleCount += 1;
     }
 
@@ -166,18 +169,33 @@ export const calculatePortfolioMetrics = (investments) => {
 
   const metricsArray = investments.map(calculateMetrics);
 
-  const totalInvestment = metricsArray.reduce(
+  // Filter out sold investments first
+  const activeInvestments = metricsArray.filter(
+    (inv) => inv.decisionToSell !== "Already Sold"
+  );
+
+  // Calculate total investment (active only)
+  const totalInvestment = activeInvestments.reduce(
     (sum, inv) => sum + parseFloat(inv.buyTotalAmount),
     0
   );
-  const currentValue = metricsArray.reduce(
+
+  // Calculate current value (active only)
+  const currentValue = activeInvestments.reduce(
     (sum, inv) => sum + inv.finalValue,
     0
   );
+
+  // Calculate profit/loss
   const totalProfitLoss = currentValue - totalInvestment;
-  const totalReturnPercent = (totalProfitLoss / totalInvestment) * 100;
-  const ltcgEligibleCount = metricsArray.filter(
-    (inv) => inv.eligibleForLTCG === "Yes" && inv.decisionToSell !== "Already Sold"
+
+  // Calculate return percentage
+  const totalReturnPercent =
+    totalInvestment > 0 ? (totalProfitLoss / totalInvestment) * 100 : 0;
+
+  // Count LTCG eligible (active only)
+  const ltcgEligibleCount = activeInvestments.filter(
+    (inv) => inv.eligibleForLTCG === "Yes"
   ).length;
 
   return {
