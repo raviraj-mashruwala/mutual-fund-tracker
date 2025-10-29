@@ -49,15 +49,24 @@ export const addInvestment = async (investment, userId) => {
       try {
         const navData = await fetchInitialNAV(investment.schemeCode);
         if (navData) {
+          // Normalize date to YYYY-MM-DD
+          const normalizeDate = (d) => {
+            if (!d) return new Date().toISOString().split('T')[0];
+            if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+            const dt = new Date(d);
+            if (!isNaN(dt.getTime())) return dt.toISOString().split('T')[0];
+            return new Date().toISOString().split('T')[0];
+          };
+
           currentNAV = navData.nav;
-          currentNAVDate = navData.date;
+          currentNAVDate = normalizeDate(navData.date);
 
           // Store in NAV collection
           await setDoc(doc(db, NAV_COLLECTION, investment.schemeCode), {
             schemeCode: investment.schemeCode,
             schemeName: navData.schemeName,
             currentNAV: navData.nav,
-            navDate: navData.date,
+            navDate: currentNAVDate,
             lastUpdated: new Date().toISOString()
           }, { merge: true });
 
@@ -66,7 +75,7 @@ export const addInvestment = async (investment, userId) => {
             investment.schemeCode,
             investment.fundName,
             navData.nav,
-            navData.date
+            currentNAVDate
           );
 
           console.log(`Initial NAV and history stored for ${investment.fundName}: ${currentNAV}`);
@@ -123,6 +132,14 @@ export const updateInvestment = async (id, updatedData, userId) => {
 
     // Update NAV history if current NAV changed
     if (updatedData.currentNAV) {
+      // Ensure date normalized
+      if (updatedInvestment.currentNAVDate) {
+        // prefer YYYY-MM-DD
+        const dt = new Date(updatedInvestment.currentNAVDate);
+        if (!isNaN(dt.getTime())) {
+          updatedInvestment.currentNAVDate = dt.toISOString().split('T')[0];
+        }
+      }
       await updateNavHistoryForInvestment(updatedInvestment);
     }
 
@@ -189,14 +206,24 @@ export const bulkUpdateNAVWithHistory = async (navUpdates) => {
       const { schemeCode, schemeName, nav, date } = update;
 
       // Store in NAV history
-      await storeNavHistory(schemeCode, schemeName, nav, date);
+      // normalize date
+      const normalizeDate = (d) => {
+        if (!d) return new Date().toISOString().split('T')[0];
+        if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+        const dt = new Date(d);
+        if (!isNaN(dt.getTime())) return dt.toISOString().split('T')[0];
+        return new Date().toISOString().split('T')[0];
+      };
+
+      const normalizedDate = normalizeDate(date);
+      await storeNavHistory(schemeCode, schemeName, nav, normalizedDate);
 
       // Update NAV collection
       await setDoc(doc(db, NAV_COLLECTION, schemeCode), {
         schemeCode,
         schemeName,
         currentNAV: nav,
-        navDate: date,
+        navDate: normalizedDate,
         lastUpdated: new Date().toISOString()
       }, { merge: true });
     });

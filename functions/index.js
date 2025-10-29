@@ -53,31 +53,70 @@ const fetchNAVFromAMFI = () => {
             // Parse NAV data lines (format: code;isin;name;name2;nav;date)
             if (trimmedLine.includes(';')) {
               const parts = trimmedLine.split(';');
-              
+
               // AMFI format: schemeCode;ISIN;SchemeISIN;SchemeName;NAV;ReportDate
               if (parts.length >= 5) {
                 const schemeCode = parts[0].trim();
                 const schemeName = parts[3].trim();
                 const navValue = parseFloat(parts[4].trim());
-                
+
+                // Prefer the report date from the line if present (parts[5]), else fall back to currentDate
+                let reportDateRaw = parts[5] ? parts[5].trim() : null;
+                let parsedDate = null;
+
+                // Helper: try parse AMFI date formats (DD-MMM-YYYY or YYYY-MM-DD)
+                const parseAMFIDate = (d) => {
+                  if (!d) return null;
+                  // If already in YYYY-MM-DD
+                  if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+
+                  // DD-MMM-YYYY -> convert
+                  const m = d.match(/^(\d{2})-([A-Za-z]{3})-(\d{4})$/);
+                  if (m) {
+                    const day = m[1];
+                    const monthStr = m[2];
+                    const year = m[3];
+                    const monthMap = {
+                      'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04',
+                      'May': '05', 'Jun': '06', 'Jul': '07', 'Aug': '08',
+                      'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
+                    };
+                    const mm = monthMap[monthStr] || '01';
+                    return `${year}-${mm}-${day}`;
+                  }
+
+                  // Try other common formats by creating Date
+                  const dt = new Date(d);
+                  if (!isNaN(dt.getTime())) {
+                    return dt.toISOString().split('T')[0];
+                  }
+                  return null;
+                };
+
+                if (reportDateRaw) {
+                  parsedDate = parseAMFIDate(reportDateRaw);
+                }
+
+                const finalDate = parsedDate || currentDate || new Date().toISOString().split('T')[0];
+
                 // Validate data
                 if (schemeCode && schemeName && !isNaN(navValue) && navValue > 0) {
                   navData[schemeCode] = {
                     schemeName: schemeName,
                     nav: navValue,
-                    date: currentDate || new Date().toISOString().split('T')[0]
+                    date: finalDate
                   };
-                  
+
                   schemesFound++;
-                  
+
                   // Log first few schemes for debugging
                   if (schemesFound <= 5) {
-                    console.log(`✓ Scheme ${schemesFound}: ${schemeCode} - ${schemeName} = ₹${navValue}`);
+                    console.log(`✓ Scheme ${schemesFound}: ${schemeCode} - ${schemeName} = ₹${navValue} on ${finalDate}`);
                   }
-                  
+
                   // Special log for scheme 120847
                   if (schemeCode === '120847') {
-                    console.log(`🎯 FOUND TARGET SCHEME! ${schemeCode} - ${schemeName} = ₹${navValue}`);
+                    console.log(`🎯 FOUND TARGET SCHEME! ${schemeCode} - ${schemeName} = ₹${navValue} on ${finalDate}`);
                   }
                 }
               }
