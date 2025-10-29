@@ -128,37 +128,49 @@ const Dashboard = ({ investments, viewMode }) => {
       )}
 
       {/* Fund Allocation */}
-      {fundMetrics.length > 0 && (
+      {fundMetrics.length > 0 && portfolioMetrics.currentValue > 0 && (
         <div style={styles.section}>
           <h3 style={styles.sectionTitle}>Fund Allocation</h3>
           <div style={styles.allocationContainer}>
-            {fundMetrics.map((fund, idx) => {
-              const percentage = (fund.totalInvestment / portfolioMetrics.totalInvestment) * 100;
+            {(() => {
+              const activeFunds = fundMetrics.filter(f => (f.holdingsCount - f.soldCount) > 0);
+              if (activeFunds.length === 0) {
+                return (
+                  <div style={{ padding: '12px', color: '#5A6D70', fontSize: '14px' }}>
+                    No active holdings to display.
+                  </div>
+                );
+              }
+
               const colors = ['#B8E3E9', '#93B1B5', '#4F7C82', '#6BC4A6', '#64B5F6'];
-              return (
-                <div key={idx} style={styles.allocationRow}>
-                  <div style={styles.allocationLabel}>
-                    <div style={{
-                      ...styles.allocationDot,
-                      background: colors[idx % colors.length]
-                    }}></div>
-                    {fund.fundName}
-                  </div>
-                  <div style={styles.allocationBarContainer}>
-                    <div 
-                      style={{
-                        ...styles.allocationBar,
-                        width: `${percentage}%`,
+
+              return activeFunds.map((fund, idx) => {
+                const percentage = (fund.currentValue / portfolioMetrics.currentValue) * 100;
+                return (
+                  <div key={idx} style={styles.allocationRow}>
+                    <div style={styles.allocationLabel}>
+                      <div style={{
+                        ...styles.allocationDot,
                         background: colors[idx % colors.length]
-                      }}
-                    >
-                      <span style={styles.allocationBarLabel}>{percentage.toFixed(1)}%</span>
+                      }}></div>
+                      {fund.fundName}
                     </div>
+                    <div style={styles.allocationBarContainer}>
+                      <div
+                        style={{
+                          ...styles.allocationBar,
+                          width: `${percentage}%`,
+                          background: colors[idx % colors.length]
+                        }}
+                      >
+                        <span style={styles.allocationBarLabel}>{percentage.toFixed(1)}%</span>
+                      </div>
+                    </div>
+                    <div style={styles.allocationAmount}>{formatCurrency(fund.currentValue)}</div>
                   </div>
-                  <div style={styles.allocationAmount}>{formatCurrency(fund.totalInvestment)}</div>
-                </div>
-              );
-            })}
+                );
+              });
+            })()}
           </div>
         </div>
       )}
