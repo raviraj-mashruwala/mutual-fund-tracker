@@ -60,7 +60,7 @@ const fetchNAVFromAMFI = () => {
                 const schemeName = parts[3].trim();
                 const navValue = parseFloat(parts[4].trim());
 
-                // Prefer the report date from the line if present (parts[5]), else fall back to currentDate
+                // Prefer the report date from the line if present (parts[5])
                 let reportDateRaw = parts[5] ? parts[5].trim() : null;
                 let parsedDate = null;
 
@@ -97,10 +97,11 @@ const fetchNAVFromAMFI = () => {
                   parsedDate = parseAMFIDate(reportDateRaw);
                 }
 
-                const finalDate = parsedDate || currentDate || new Date().toISOString().split('T')[0];
+                // Do not silently fall back to today's date. Require a parsed report date or the file-level date.
+                const finalDate = parsedDate || currentDate || null;
 
-                // Validate data
-                if (schemeCode && schemeName && !isNaN(navValue) && navValue > 0) {
+                // Validate data and ensure we have a report date
+                if (schemeCode && schemeName && !isNaN(navValue) && navValue > 0 && finalDate) {
                   navData[schemeCode] = {
                     schemeName: schemeName,
                     nav: navValue,
@@ -118,8 +119,13 @@ const fetchNAVFromAMFI = () => {
                   if (schemeCode === '120847') {
                     console.log(`🎯 FOUND TARGET SCHEME! ${schemeCode} - ${schemeName} = ₹${navValue} on ${finalDate}`);
                   }
+                } else {
+                  if (!finalDate) {
+                    console.warn(`Skipping scheme ${schemeCode} because no valid report date found in AMFI data lines`);
+                  }
                 }
               }
+
               linesParsed++;
             }
           });

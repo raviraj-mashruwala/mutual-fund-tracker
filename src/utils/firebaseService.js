@@ -49,34 +49,38 @@ export const addInvestment = async (investment, userId) => {
       try {
         const navData = await fetchInitialNAV(investment.schemeCode);
         if (navData) {
-          // Normalize date to YYYY-MM-DD
-          const normalizeDate = (d) => {
-            if (!d) return new Date().toISOString().split('T')[0];
+          // Normalize date to YYYY-MM-DD, but be strict: if we can't parse the AMFI date, do not fallback to today.
+          const normalizeDateStrict = (d) => {
+            if (!d) return null;
             if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
             const dt = new Date(d);
             if (!isNaN(dt.getTime())) return dt.toISOString().split('T')[0];
-            return new Date().toISOString().split('T')[0];
+            return null;
           };
 
           currentNAV = navData.nav;
-          currentNAVDate = normalizeDate(navData.date);
+          currentNAVDate = normalizeDateStrict(navData.date);
 
-          // Store in NAV collection
-          await setDoc(doc(db, NAV_COLLECTION, investment.schemeCode), {
-            schemeCode: investment.schemeCode,
-            schemeName: navData.schemeName,
-            currentNAV: navData.nav,
-            navDate: currentNAVDate,
-            lastUpdated: new Date().toISOString()
-          }, { merge: true });
+          if (currentNAVDate) {
+            // Store in NAV collection
+            await setDoc(doc(db, NAV_COLLECTION, investment.schemeCode), {
+              schemeCode: investment.schemeCode,
+              schemeName: navData.schemeName,
+              currentNAV: navData.nav,
+              navDate: currentNAVDate,
+              lastUpdated: new Date().toISOString()
+            }, { merge: true });
 
-          // Store in NAV history for tracking daily changes
-          await storeNavHistory(
-            investment.schemeCode,
-            investment.fundName,
-            navData.nav,
-            currentNAVDate
-          );
+            // Store in NAV history for tracking daily changes
+            await storeNavHistory(
+              investment.schemeCode,
+              investment.fundName,
+              navData.nav,
+              currentNAVDate
+            );
+          } else {
+            console.warn(`Not storing NAV for ${investment.schemeCode} because AMFI date could not be parsed: ${navData.date}`);
+          }
 
           console.log(`Initial NAV and history stored for ${investment.fundName}: ${currentNAV}`);
         }
@@ -206,26 +210,30 @@ export const bulkUpdateNAVWithHistory = async (navUpdates) => {
       const { schemeCode, schemeName, nav, date } = update;
 
       // Store in NAV history
-      // normalize date
-      const normalizeDate = (d) => {
-        if (!d) return new Date().toISOString().split('T')[0];
+      // strict normalize date
+      const normalizeDateStrict = (d) => {
+        if (!d) return null;
         if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
         const dt = new Date(d);
         if (!isNaN(dt.getTime())) return dt.toISOString().split('T')[0];
-        return new Date().toISOString().split('T')[0];
+        return null;
       };
 
-      const normalizedDate = normalizeDate(date);
-      await storeNavHistory(schemeCode, schemeName, nav, normalizedDate);
+      const normalizedDate = normalizeDateStrict(date);
+      if (normalizedDate) {
+        await storeNavHistory(schemeCode, schemeName, nav, normalizedDate);
 
-      // Update NAV collection
-      await setDoc(doc(db, NAV_COLLECTION, schemeCode), {
-        schemeCode,
-        schemeName,
-        currentNAV: nav,
-        navDate: normalizedDate,
-        lastUpdated: new Date().toISOString()
-      }, { merge: true });
+        // Update NAV collection
+        await setDoc(doc(db, NAV_COLLECTION, schemeCode), {
+          schemeCode,
+          schemeName,
+          currentNAV: nav,
+          navDate: normalizedDate,
+          lastUpdated: new Date().toISOString()
+        }, { merge: true });
+      } else {
+        console.warn(`Skipping NAV update for ${schemeCode} because date could not be parsed: ${date}`);
+      }
     });
 
     await Promise.all(promises);

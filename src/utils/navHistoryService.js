@@ -19,7 +19,7 @@ export const storeNavHistory = async (schemeCode, schemeName, nav, date) => {
   try {
     // Normalize incoming date to YYYY-MM-DD
     const normalizeDate = (d) => {
-      if (!d) return new Date().toISOString().split('T')[0];
+      if (!d) return null;
       if (typeof d === 'string') {
         // already in YYYY-MM-DD?
         if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
@@ -35,20 +35,24 @@ export const storeNavHistory = async (schemeCode, schemeName, nav, date) => {
             'May': '05', 'Jun': '06', 'Jul': '07', 'Aug': '08',
             'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
           };
-          const mm = monthMap[monthStr] || '01';
-          return `${year}-${mm}-${day}`;
+          const mm = monthMap[monthStr];
+          if (mm) return `${year}-${mm}-${day}`;
         }
 
         // Fallback: try Date parser
         const dt = new Date(d);
         if (!isNaN(dt.getTime())) return dt.toISOString().split('T')[0];
-        return new Date().toISOString().split('T')[0];
+        return null;
       }
       // Date object
       return d.toISOString().split('T')[0];
     };
 
     const navDate = normalizeDate(date);
+    if (!navDate) {
+      console.warn(`Skipping storeNavHistory for ${schemeCode} because date could not be parsed: ${date}`);
+      return;
+    }
     const docId = `${schemeCode}_${navDate}`;
 
     await setDoc(doc(db, NAV_HISTORY_COLLECTION, docId), {
