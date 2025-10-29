@@ -2,53 +2,49 @@
 import { 
   collection, 
   getDocs, 
-  addDoc, 
   query, 
   where, 
   orderBy,
   doc,
-  setDoc,
-  getDoc
+  setDoc
 } from 'firebase/firestore';
 import { db } from '../firebase';
 
 const NAV_HISTORY_COLLECTION = 'navHistory';
 
+// Parse various AMFI date formats into YYYY-MM-DD or return null
+export const parseNavDate = (d) => {
+  if (!d) return null;
+  // If already in YYYY-MM-DD
+  if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+
+  // DD-MMM-YYYY -> convert
+  if (typeof d === 'string') {
+    const m = d.match(/^(\d{2})-([A-Za-z]{3})-(\d{4})$/);
+    if (m) {
+      const day = m[1];
+      const monthStr = m[2];
+      const year = m[3];
+      const monthMap = {
+        'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04',
+        'May': '05', 'Jun': '06', 'Jul': '07', 'Aug': '08',
+        'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
+      };
+      const mm = monthMap[monthStr];
+      if (mm) return `${year}-${mm}-${day}`;
+    }
+  }
+
+  // Fallback: try Date parser (works for ISO and common formats)
+  const dt = new Date(d);
+  if (!isNaN(dt.getTime())) return dt.toISOString().split('T')[0];
+  return null;
+};
+
 // Store daily NAV for a fund
 export const storeNavHistory = async (schemeCode, schemeName, nav, date) => {
   try {
-    // Normalize incoming date to YYYY-MM-DD
-    const normalizeDate = (d) => {
-      if (!d) return null;
-      if (typeof d === 'string') {
-        // already in YYYY-MM-DD?
-        if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
-
-        // Try DD-MMM-YYYY (e.g., 29-Oct-2025)
-        const m = d.match(/^(\d{2})-([A-Za-z]{3})-(\d{4})$/);
-        if (m) {
-          const day = m[1];
-          const monthStr = m[2];
-          const year = m[3];
-          const monthMap = {
-            'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04',
-            'May': '05', 'Jun': '06', 'Jul': '07', 'Aug': '08',
-            'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
-          };
-          const mm = monthMap[monthStr];
-          if (mm) return `${year}-${mm}-${day}`;
-        }
-
-        // Fallback: try Date parser
-        const dt = new Date(d);
-        if (!isNaN(dt.getTime())) return dt.toISOString().split('T')[0];
-        return null;
-      }
-      // Date object
-      return d.toISOString().split('T')[0];
-    };
-
-    const navDate = normalizeDate(date);
+    const navDate = parseNavDate(date);
     if (!navDate) {
       console.warn(`Skipping storeNavHistory for ${schemeCode} because date could not be parsed: ${date}`);
       return;
@@ -61,9 +57,9 @@ export const storeNavHistory = async (schemeCode, schemeName, nav, date) => {
       nav: parseFloat(nav),
       date: navDate,
       createdAt: new Date().toISOString(),
-  year: new Date(navDate).getFullYear(),
-  month: new Date(navDate).getMonth() + 1,
-  yearMonth: `${new Date(navDate).getFullYear()}-${String(new Date(navDate).getMonth() + 1).padStart(2, '0')}`
+      year: new Date(navDate).getFullYear(),
+      month: new Date(navDate).getMonth() + 1,
+      yearMonth: `${new Date(navDate).getFullYear()}-${String(new Date(navDate).getMonth() + 1).padStart(2, '0')}`
     }, { merge: true });
 
     console.log(`NAV history stored for ${schemeName} on ${navDate}: ₹${nav}`);

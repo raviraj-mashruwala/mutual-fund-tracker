@@ -14,7 +14,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { fetchInitialNAV } from './navService';
-import { storeNavHistory, updateNavHistoryForInvestment } from './navHistoryService';
+import { storeNavHistory, updateNavHistoryForInvestment, parseNavDate } from './navHistoryService';
 
 const COLLECTION_NAME = 'investments';
 const NAV_COLLECTION = 'navData';
@@ -49,17 +49,9 @@ export const addInvestment = async (investment, userId) => {
       try {
         const navData = await fetchInitialNAV(investment.schemeCode);
         if (navData) {
-          // Normalize date to YYYY-MM-DD, but be strict: if we can't parse the AMFI date, do not fallback to today.
-          const normalizeDateStrict = (d) => {
-            if (!d) return null;
-            if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
-            const dt = new Date(d);
-            if (!isNaN(dt.getTime())) return dt.toISOString().split('T')[0];
-            return null;
-          };
-
+          // Parse AMFI-provided date using central parser (handles DD-MMM-YYYY and ISO)
           currentNAV = navData.nav;
-          currentNAVDate = normalizeDateStrict(navData.date);
+          currentNAVDate = parseNavDate(navData.date);
 
           if (currentNAVDate) {
             // Store in NAV collection
@@ -136,13 +128,10 @@ export const updateInvestment = async (id, updatedData, userId) => {
 
     // Update NAV history if current NAV changed
     if (updatedData.currentNAV) {
-      // Ensure date normalized
+      // Ensure date normalized using parseNavDate
       if (updatedInvestment.currentNAVDate) {
-        // prefer YYYY-MM-DD
-        const dt = new Date(updatedInvestment.currentNAVDate);
-        if (!isNaN(dt.getTime())) {
-          updatedInvestment.currentNAVDate = dt.toISOString().split('T')[0];
-        }
+        const parsed = parseNavDate(updatedInvestment.currentNAVDate);
+        if (parsed) updatedInvestment.currentNAVDate = parsed;
       }
       await updateNavHistoryForInvestment(updatedInvestment);
     }
@@ -210,16 +199,7 @@ export const bulkUpdateNAVWithHistory = async (navUpdates) => {
       const { schemeCode, schemeName, nav, date } = update;
 
       // Store in NAV history
-      // strict normalize date
-      const normalizeDateStrict = (d) => {
-        if (!d) return null;
-        if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
-        const dt = new Date(d);
-        if (!isNaN(dt.getTime())) return dt.toISOString().split('T')[0];
-        return null;
-      };
-
-      const normalizedDate = normalizeDateStrict(date);
+      const normalizedDate = parseNavDate(date);
       if (normalizedDate) {
         await storeNavHistory(schemeCode, schemeName, nav, normalizedDate);
 

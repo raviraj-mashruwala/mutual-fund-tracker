@@ -28,7 +28,8 @@ export const calculateMetrics = (investment) => {
 
   // Use stored current NAV or fallback to buy NAV with estimate
   const navToUse = currentNAV || parseFloat(buyNAV) * 1.05; // 5% estimate if no NAV
-  const navDate = currentNAVDate || new Date().toISOString().split("T")[0];
+  // Do NOT fallback to today's date when currentNAVDate is missing — keep it null so UI can show N/A
+  const navDate = currentNAVDate || null;
 
   // Calculate holding period
   const holdingPeriodDays = calculateDaysBetween(buyDate, sellDate || null);
