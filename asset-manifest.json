@@ -1,13 +1,13 @@
 {
   "files": {
     "main.css": "/mutual-fund-tracker/static/css/main.3c0e145d.css",
-    "main.js": "/mutual-fund-tracker/static/js/main.f308ce57.js",
+    "main.js": "/mutual-fund-tracker/static/js/main.001349a3.js",
     "index.html": "/mutual-fund-tracker/index.html",
     "main.3c0e145d.css.map": "/mutual-fund-tracker/static/css/main.3c0e145d.css.map",
-    "main.f308ce57.js.map": "/mutual-fund-tracker/static/js/main.f308ce57.js.map"
+    "main.001349a3.js.map": "/mutual-fund-tracker/static/js/main.001349a3.js.map"
   },
   "entrypoints": [
     "static/css/main.3c0e145d.css",
-    "static/js/main.f308ce57.js"
+    "static/js/main.001349a3.js"
   ]
 }
