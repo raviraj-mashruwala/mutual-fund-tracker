@@ -5,6 +5,28 @@ const https = require('https');
 admin.initializeApp();
 const db = admin.firestore();
 
+// Shared date parser: convert DD-MMM-YYYY or ISO-like strings to YYYY-MM-DD, or null
+const parseAMFIDate = (d) => {
+  if (!d) return null;
+  if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+  const m = (typeof d === 'string') ? d.match(/^(\d{2})-([A-Za-z]{3})-(\d{4})$/) : null;
+  if (m) {
+    const day = m[1];
+    const monthStr = m[2];
+    const year = m[3];
+    const monthMap = {
+      'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04',
+      'May': '05', 'Jun': '06', 'Jul': '07', 'Aug': '08',
+      'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
+    };
+    const mm = monthMap[monthStr] || null;
+    if (mm) return `${year}-${mm}-${day}`;
+  }
+  const dt = new Date(d);
+  if (!isNaN(dt.getTime())) return dt.toISOString().split('T')[0];
+  return null;
+};
+
 // FIXED: Fetch NAV data from AMFI
 const fetchNAVFromAMFI = () => {
   return new Promise((resolve, reject) => {
@@ -67,11 +89,9 @@ const fetchNAVFromAMFI = () => {
                 // Helper: try parse AMFI date formats (DD-MMM-YYYY or YYYY-MM-DD)
                 const parseAMFIDate = (d) => {
                   if (!d) return null;
-                  // If already in YYYY-MM-DD
-                  if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+                  if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
 
-                  // DD-MMM-YYYY -> convert
-                  const m = d.match(/^(\d{2})-([A-Za-z]{3})-(\d{4})$/);
+                  const m = (typeof d === 'string') ? d.match(/^(\d{2})-([A-Za-z]{3})-(\d{4})$/) : null;
                   if (m) {
                     const day = m[1];
                     const monthStr = m[2];
@@ -81,15 +101,13 @@ const fetchNAVFromAMFI = () => {
                       'May': '05', 'Jun': '06', 'Jul': '07', 'Aug': '08',
                       'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
                     };
-                    const mm = monthMap[monthStr] || '01';
-                    return `${year}-${mm}-${day}`;
+                    const mm = monthMap[monthStr] || null;
+                    if (mm) return `${year}-${mm}-${day}`;
                   }
 
-                  // Try other common formats by creating Date
+                  // Fallback: try Date parser but avoid timezone shifts by reading as UTC when possible
                   const dt = new Date(d);
-                  if (!isNaN(dt.getTime())) {
-                    return dt.toISOString().split('T')[0];
-                  }
+                  if (!isNaN(dt.getTime())) return dt.toISOString().split('T')[0];
                   return null;
                 };
 
@@ -160,11 +178,37 @@ const fetchNAVFromAMFI = () => {
 // Helper: Store NAV history
 const storeNavHistory = async (schemeCode, schemeName, nav, date) => {
   try {
-    const navDate = typeof date === 'string' ? date : date.toISOString().split('T')[0];
+    // Normalize date to YYYY-MM-DD using the same parser used earlier
+    const parseAMFIDateLocal = (d) => {
+      if (!d) return null;
+      if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+      const m = (typeof d === 'string') ? d.match(/^(\d{2})-([A-Za-z]{3})-(\d{4})$/) : null;
+      if (m) {
+        const day = m[1];
+        const monthStr = m[2];
+        const year = m[3];
+        const monthMap = {
+          'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04',
+          'May': '05', 'Jun': '06', 'Jul': '07', 'Aug': '08',
+          'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
+        };
+        const mm = monthMap[monthStr] || null;
+        if (mm) return `${year}-${mm}-${day}`;
+      }
+      const dt = new Date(d);
+      if (!isNaN(dt.getTime())) return dt.toISOString().split('T')[0];
+      return null;
+    };
+
+    const navDate = parseAMFIDateLocal(date);
+    if (!navDate) {
+      console.warn(`storeNavHistory: could not parse date for ${schemeCode}: ${date}`);
+      return;
+    }
+
     const docId = `${schemeCode}_${navDate}`;
-    
     const navDateObj = new Date(navDate);
-    
+
     await db.collection('navHistory').doc(docId).set({
       schemeCode,
       schemeName,
@@ -175,7 +219,7 @@ const storeNavHistory = async (schemeCode, schemeName, nav, date) => {
       month: navDateObj.getMonth() + 1,
       yearMonth: `${navDateObj.getFullYear()}-${String(navDateObj.getMonth() + 1).padStart(2, '0')}`
     }, { merge: true });
-    
+
   } catch (error) {
     console.error('Error storing NAV history:', error);
   }
@@ -241,11 +285,13 @@ exports.manualUpdateNAV = functions.https.onRequest(async (req, res) => {
       
       if (schemeCode && navData[schemeCode]) {
         const { schemeName, nav, date } = navData[schemeCode];
-        console.log(`✅ MATCH! ${schemeName}: ₹${nav} on ${date}`);
+        // Normalize date before writing to investments (ensure YYYY-MM-DD)
+        const normalizedDate = (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) ? date : (date ? parseAMFIDate(date) : null);
+        console.log(`✅ MATCH! ${schemeName}: ₹${nav} on ${normalizedDate || date}`);
         
         batch.update(db.collection('investments').doc(investment.id), {
           currentNAV: nav,
-          currentNAVDate: date,
+          currentNAVDate: normalizedDate || null,
           navLastUpdated: admin.firestore.FieldValue.serverTimestamp()
         });
         
@@ -262,16 +308,23 @@ exports.manualUpdateNAV = functions.https.onRequest(async (req, res) => {
     // Step 5: Store NAV data and history
     for (const schemeCode of uniqueSchemeCodesUpdated) {
       const { schemeName, nav, date } = navData[schemeCode];
-      
+      const normalizedDate = (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) ? date : (date ? parseAMFIDate(date) : null);
+
       await db.collection('navData').doc(schemeCode).set({
         schemeCode,
         schemeName,
         currentNAV: nav,
-        navDate: date,
+        navDate: normalizedDate || null,
         lastUpdated: admin.firestore.FieldValue.serverTimestamp()
       }, { merge: true });
-      
-      await storeNavHistory(schemeCode, schemeName, nav, date);
+
+      if (normalizedDate) {
+        await storeNavHistory(schemeCode, schemeName, nav, normalizedDate);
+      } else {
+        // If we couldn't normalize, still attempt to store history but log a warning
+        console.warn(`Could not normalize date for scheme ${schemeCode}: ${date}`);
+        await storeNavHistory(schemeCode, schemeName, nav, date);
+      }
     }
     
     res.json({
