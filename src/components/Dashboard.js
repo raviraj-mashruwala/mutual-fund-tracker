@@ -133,7 +133,9 @@ const Dashboard = ({ investments, viewMode }) => {
           <h3 style={styles.sectionTitle}>Fund Allocation</h3>
           <div style={styles.allocationContainer}>
             {(() => {
-              const activeFunds = fundMetrics.filter(f => (f.holdingsCount - f.soldCount) > 0);
+              // fundMetrics now has holdingsCount representing active (not-sold) entries,
+              // so simply filter funds with any active holdings.
+              const activeFunds = fundMetrics.filter(f => f.holdingsCount > 0);
               if (activeFunds.length === 0) {
                 return (
                   <div style={{ padding: '12px', color: '#5A6D70', fontSize: '14px' }}>

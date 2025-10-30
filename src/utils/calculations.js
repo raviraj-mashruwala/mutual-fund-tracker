@@ -19,8 +19,6 @@ export const calculateMetrics = (investment) => {
     quantity,
     buyTotalAmount,
     sellDate,
-    sellNAV,
-    sellQuantity,
     sellTotalAmount,
     currentNAV, // Stored from Firebase (updated daily)
     currentNAVDate,
@@ -120,17 +118,23 @@ export const calculateFundMetrics = (investments) => {
       };
     }
 
+    // Always keep the investment metrics in the list (so UI can show sold entries),
+    // but only include active (not sold) investments in the fund-level aggregates used for
+    // holdings/current value/returns.
     fundGroups[fundName].investments.push(metrics);
-    fundGroups[fundName].totalInvestment += parseFloat(inv.buyTotalAmount);
-    fundGroups[fundName].currentValue += metrics.finalValue;
-    fundGroups[fundName].totalProfitLoss += metrics.netProfitLoss;
-    fundGroups[fundName].holdingsCount += 1;
 
-    if (
-      metrics.eligibleForLTCG === "Yes" &&
-      metrics.decisionToSell !== "Already Sold"
-    ) {
-      fundGroups[fundName].ltcgEligibleCount += 1;
+    if (!inv.sellDate) {
+      fundGroups[fundName].totalInvestment += parseFloat(inv.buyTotalAmount);
+      fundGroups[fundName].currentValue += metrics.finalValue;
+      fundGroups[fundName].totalProfitLoss += metrics.netProfitLoss;
+      fundGroups[fundName].holdingsCount += 1;
+
+      if (
+        metrics.eligibleForLTCG === "Yes" &&
+        metrics.decisionToSell !== "Already Sold"
+      ) {
+        fundGroups[fundName].ltcgEligibleCount += 1;
+      }
     }
 
     if (inv.sellDate) {
@@ -141,14 +145,18 @@ export const calculateFundMetrics = (investments) => {
   // Calculate percentages and CAGR for each fund
   Object.values(fundGroups).forEach((fund) => {
     fund.totalReturnPercent =
-      (fund.totalProfitLoss / fund.totalInvestment) * 100;
+      fund.totalInvestment > 0 ? (fund.totalProfitLoss / fund.totalInvestment) * 100 : 0;
 
-    // Weighted average CAGR
+    // Weighted average CAGR across active investments only (avoid dividing by 0)
     let totalWeightedCAGR = 0;
-    fund.investments.forEach((inv) => {
-      const weight = parseFloat(inv.buyTotalAmount) / fund.totalInvestment;
-      totalWeightedCAGR += inv.cagr * weight;
-    });
+    if (fund.totalInvestment > 0) {
+      fund.investments.forEach((inv) => {
+        if (!inv.sellDate) {
+          const weight = parseFloat(inv.buyTotalAmount) / fund.totalInvestment;
+          totalWeightedCAGR += inv.cagr * weight;
+        }
+      });
+    }
     fund.avgCAGR = totalWeightedCAGR;
   });
 
@@ -204,7 +212,8 @@ export const calculatePortfolioMetrics = (investments) => {
     currentValue: parseFloat(currentValue.toFixed(2)),
     totalProfitLoss: parseFloat(totalProfitLoss.toFixed(2)),
     totalReturnPercent: parseFloat(totalReturnPercent.toFixed(2)),
-    totalHoldings: investments.length,
+    // totalHoldings should reflect only active (not sold) investments
+    totalHoldings: activeInvestments.length,
     ltcgEligibleCount,
   };
 };

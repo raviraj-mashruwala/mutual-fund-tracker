@@ -10,6 +10,7 @@ import InvestmentForm from './components/InvestmentForm';
 import InvestmentTable from './components/InvestmentTable';
 import GroupedInvestmentView from './components/GroupedInvestmentView';
 import ThemeToggle from './components/ThemeToggle';
+import { calculatePortfolioMetrics } from './utils/calculations';
 import { 
   fetchInvestments, 
   addInvestment, 
@@ -145,6 +146,9 @@ function App() {
   };
 
   const existingFundNames = [...new Set(investments.map(inv => inv.fundName))];
+
+  // Compute portfolio metrics (this will count only active holdings)
+  const portfolioMetrics = calculatePortfolioMetrics(investments);
 
   // Define styles inside the function to access theme
   const styles = {
@@ -469,7 +473,7 @@ function App() {
           </div>
           <div style={styles.headerStats}>
             <div style={styles.statBadge}>
-              <span style={styles.statValue}>{investments.length}</span>
+              <span style={styles.statValue}>{portfolioMetrics.totalHoldings}</span>
               <span style={styles.statLabel}>Holdings</span>
             </div>
 
