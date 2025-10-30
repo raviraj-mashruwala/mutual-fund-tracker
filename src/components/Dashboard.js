@@ -19,7 +19,11 @@ const Dashboard = ({ investments, viewMode }) => {
     return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
   };
 
-  const topFunds = [...fundMetrics].sort((a, b) => b.totalReturnPercent - a.totalReturnPercent).slice(0, 3);
+  // Only consider funds that have active holdings for top performers
+  const topFunds = [...fundMetrics]
+    .filter((f) => f.holdingsCount > 0)
+    .sort((a, b) => b.totalReturnPercent - a.totalReturnPercent)
+    .slice(0, 3);
 
   return (
     <div style={styles.dashboard}>
