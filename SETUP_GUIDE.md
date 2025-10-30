@@ -257,4 +257,36 @@ Check:
 
 ---
 
+---
+
+## ⚙️ CI / Deployment (GitHub Actions)
+
+This repository includes a GitHub Actions workflow at `.github/workflows/main.yml` that builds and deploys the React app to GitHub Pages and conditionally deploys Cloud Functions when files under `functions/` change. To allow automated function deploys, you must add a repository secret named `FIREBASE_TOKEN`.
+
+How to create the token (run locally on your machine):
+
+```powershell
+# Install Firebase CLI if you don't have it already
+npm install -g firebase-tools
+
+# Generate a CI token (opens your browser to sign in)
+firebase login:ci
+# Copy the printed token (long string) from the terminal
+```
+
+Add the token as a GitHub repository secret:
+
+1. Go to your repository on GitHub
+2. Settings → Secrets and variables → Actions → New repository secret
+3. Name: `FIREBASE_TOKEN`
+4. Paste the token value and save
+
+Notes:
+- The workflow uses the default Firebase project from `firebase.json`. If you need to deploy to a different project, update the workflow to include `--project YOUR_PROJECT_ID` in the deploy command.
+- If you'd rather always deploy functions on every push, remove the path-based condition in the workflow (see `.github/workflows/main.yml`).
+
+---
+
 **Happy tracking! 💰📈**
+
+````
