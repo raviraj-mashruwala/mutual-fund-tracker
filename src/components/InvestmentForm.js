@@ -1,5 +1,5 @@
 // src/components/InvestmentForm.js - WITH SCHEME CODE FIELD
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 const InvestmentForm = ({ onSubmit, initialData, onCancel, existingFundNames }) => {
   const [formData, setFormData] = useState({
@@ -44,6 +44,31 @@ const InvestmentForm = ({ onSubmit, initialData, onCancel, existingFundNames }) 
       }));
     }
   }, [formData.sellNAV, formData.sellQuantity]);
+
+  // Auto-populate/clear sellQuantity when sellDate is toggled.
+  // - If sellDate becomes non-empty and sellQuantity is empty, copy buy quantity into sellQuantity.
+  // - If sellDate is cleared, clear sellQuantity and sellTotalAmount.
+  // The value remains editable by the user after auto-population.
+  const prevSellDateRef = useRef(formData.sellDate);
+  useEffect(() => {
+    const prevSellDate = prevSellDateRef.current;
+
+    // sellDate cleared -> remove sellQuantity and sellTotalAmount
+    if (!formData.sellDate && prevSellDate) {
+      if (formData.sellQuantity || formData.sellTotalAmount) {
+        setFormData(prev => ({ ...prev, sellQuantity: '', sellTotalAmount: '' }));
+      }
+    }
+
+    // sellDate newly set -> if sellQuantity empty, copy buy quantity
+    if (formData.sellDate && !prevSellDate) {
+      if (!formData.sellQuantity && formData.quantity) {
+        setFormData(prev => ({ ...prev, sellQuantity: formData.quantity }));
+      }
+    }
+
+    prevSellDateRef.current = formData.sellDate;
+  }, [formData.sellDate, formData.sellQuantity, formData.quantity, formData.sellTotalAmount]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
