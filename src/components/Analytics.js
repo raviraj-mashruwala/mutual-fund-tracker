@@ -28,6 +28,8 @@ const Analytics = ({ investments, viewMode }) => {
   );
 
   const sortedFunds = [...fundMetrics].sort((a, b) => b.totalReturnPercent - a.totalReturnPercent);
+  // Only include funds that have active holdings (holdingsCount > 0)
+  const sortedActiveFunds = sortedFunds.filter((f) => f.holdingsCount > 0);
 
   return (
     <div style={styles.analytics}>
@@ -157,11 +159,11 @@ const Analytics = ({ investments, viewMode }) => {
       )}
 
       {/* Fund-wise Performance */}
-      {fundMetrics.length > 0 && (
+      {sortedActiveFunds.length > 0 && (
         <div style={styles.section}>
           <h3 style={styles.sectionTitle}>Fund-wise Performance Summary</h3>
           <div style={styles.fundCardsGrid}>
-            {sortedFunds.map((fund, idx) => (
+            {sortedActiveFunds.map((fund, idx) => (
               <div key={fund.fundName} style={styles.fundCard}>
                 <div style={styles.fundCardHeader}>
                   <div style={styles.fundRank}>#{idx + 1}</div>
