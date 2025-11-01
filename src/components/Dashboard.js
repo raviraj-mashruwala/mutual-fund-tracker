@@ -165,12 +165,19 @@ const Dashboard = ({ investments, viewMode }) => {
                       <div
                         style={{
                           ...styles.allocationBar,
-                          width: `${percentage}%`,
+                          width: `${Math.max(percentage, 0.5)}%`, // ensure a visible min width
                           background: colors[idx % colors.length]
                         }}
                       >
-                        <span style={styles.allocationBarLabel}>{percentage.toFixed(1)}%</span>
+                        {/* Show label inside bar only when there's enough space */}
+                        {percentage >= 6 ? (
+                          <span style={styles.allocationBarLabel}>{percentage.toFixed(1)}%</span>
+                        ) : null}
                       </div>
+                      {/* If percentage is very small, show a small label to the right for visibility */}
+                      {percentage < 6 && (
+                        <div style={styles.smallPercentageLabel}>{percentage.toFixed(1)}%</div>
+                      )}
                     </div>
                     <div style={styles.allocationAmount}>{formatCurrency(fund.currentValue)}</div>
                   </div>
@@ -368,13 +375,22 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'flex-end',
     padding: '0 10px',
-    transition: 'width 0.4s ease'
+    transition: 'width 0.4s ease',
+    overflow: 'hidden',
+    minWidth: '6px' // ensure a tiny visible bar even for very small percentages
   },
   allocationBarLabel: {
     fontSize: '12px',
     fontWeight: '700',
     color: '#FFFFFF',
     textShadow: '0 1px 2px rgba(0, 0, 0, 0.2)'
+  },
+  smallPercentageLabel: {
+    marginLeft: '8px',
+    fontSize: '12px',
+    fontWeight: '700',
+    color: '#2C3E40',
+    minWidth: '34px'
   },
   allocationAmount: {
     minWidth: '110px',
