@@ -1,6 +1,7 @@
 // src/components/GroupedInvestmentView.js - REFINED WINTER CHILL DESIGN
 import React, { useState } from 'react';
 import { calculateMetrics, calculateFundMetrics } from '../utils/calculations';
+import { formatDate } from '../utils/dateFormatter';
 
 const GroupedInvestmentView = ({ investments, onEdit, onDelete }) => {
   const [expandedFunds, setExpandedFunds] = useState({});
@@ -111,7 +112,7 @@ const GroupedInvestmentView = ({ investments, onEdit, onDelete }) => {
                   <tbody>
                     {fund.investments.map((inv) => (
                       <tr key={inv.id} style={styles.row}>
-                        <td style={styles.td}>{inv.buyDate}</td>
+                        <td style={styles.td}>{formatDate(inv.buyDate)}</td>
                         <td style={styles.td}>{formatCurrency(inv.buyNAV)}</td>
                         <td style={styles.td}>{inv.quantity}</td>
                         <td style={styles.td}>{formatCurrency(inv.buyTotalAmount)}</td>

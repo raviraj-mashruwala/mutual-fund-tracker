@@ -1,6 +1,7 @@
 // src/components/InvestmentTable.js - REFINED WINTER CHILL DESIGN
 import React from 'react';
 import { calculateMetrics } from '../utils/calculations';
+import { formatDate } from '../utils/dateFormatter';
 
 const InvestmentTable = ({ investments, onEdit, onDelete }) => {
   const formatCurrency = (value) => {
@@ -44,7 +45,7 @@ const InvestmentTable = ({ investments, onEdit, onDelete }) => {
               investmentsWithMetrics.map((inv) => (
                 <tr key={inv.id} style={styles.row}>
                   <td style={styles.td}>{inv.fundName}</td>
-                  <td style={styles.td}>{inv.buyDate}</td>
+                  <td style={styles.td}>{formatDate(inv.buyDate)}</td>
                   <td style={styles.td}>{formatCurrency(inv.buyNAV)}</td>
                   <td style={styles.td}>{inv.quantity}</td>
                   <td style={styles.td}>{formatCurrency(inv.buyTotalAmount)}</td>

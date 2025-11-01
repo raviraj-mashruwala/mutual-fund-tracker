@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { getPortfolioNavHistory } from '../utils/navHistoryService';
+import { formatDate } from '../utils/dateFormatter';
 
 const NavHistory = ({ investments }) => {
   const { theme } = useTheme();
@@ -278,8 +279,21 @@ const NavHistory = ({ investments }) => {
               <tr>
                 <th style={{...styles.th, width: '120px'}}>Period</th>
                 {pivotData.funds?.map(fund => (
-                  <th key={fund} style={{...styles.th, minWidth: '80px'}}>
-                    {fund.substring(0, 15)}...
+                  <th
+                    key={fund}
+                    style={{
+                      ...styles.th,
+                      minWidth: '120px',
+                      maxWidth: '240px',
+                      whiteSpace: 'normal',
+                      wordBreak: 'break-word',
+                      lineHeight: '1.2',
+                      verticalAlign: 'middle'
+                    }}
+                  >
+                    <div style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
+                      {fund}
+                    </div>
                   </th>
                 ))}
               </tr>
@@ -314,10 +328,7 @@ const NavHistory = ({ investments }) => {
                       {Object.keys(pivotData.data[year][yearMonth] || {}).map(date => (
                         <tr key={date} style={styles.dateRow}>
                           <td style={{...styles.td, paddingLeft: '32px', fontSize: '11px'}}>
-                            {new Date(date).toLocaleDateString('en-IN', { 
-                              day: '2-digit', 
-                              month: 'short' 
-                            })}
+                            {formatDate(date)}
                           </td>
                           {pivotData.funds?.map(fund => {
                             const change = pivotData.data[year][yearMonth][date][fund];
@@ -358,7 +369,7 @@ const NavHistory = ({ investments }) => {
                 {change.schemeName.substring(0, 30)}...
               </div>
               <div style={styles.date}>
-                {new Date(change.date).toLocaleDateString('en-IN')}
+                {formatDate(change.date)}
               </div>
               <div style={styles.navValue}>
                 ₹{change.currentNav}

@@ -11,6 +11,7 @@ import InvestmentTable from './components/InvestmentTable';
 import GroupedInvestmentView from './components/GroupedInvestmentView';
 import ThemeToggle from './components/ThemeToggle';
 import { calculatePortfolioMetrics } from './utils/calculations';
+import { formatDate } from './utils/dateFormatter';
 import { 
   fetchInvestments, 
   addInvestment, 

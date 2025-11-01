@@ -1,6 +1,7 @@
 // src/components/Analytics.js - REFINED WINTER CHILL DESIGN
 import React from 'react';
 import { calculateMetrics, calculateFundMetrics, calculatePortfolioMetrics } from '../utils/calculations';
+import { formatDate } from '../utils/dateFormatter';
 
 const Analytics = ({ investments, viewMode }) => {
   const portfolioMetrics = calculatePortfolioMetrics(investments);
@@ -95,7 +96,7 @@ const Analytics = ({ investments, viewMode }) => {
                     <div style={styles.rankBadge}>{idx + 1}</div>
                     {inv.fundName}
                   </td>
-                  <td style={styles.td}>{inv.buyDate}</td>
+                  <td style={styles.td}>{formatDate(inv.buyDate)}</td>
                   <td style={styles.td}>{formatCurrency(inv.buyTotalAmount)}</td>
                   <td style={styles.td}>{formatCurrency(inv.finalValue)}</td>
                   <td style={{...styles.td, color: '#6BC4A6', fontWeight: '700'}}>
@@ -137,7 +138,7 @@ const Analytics = ({ investments, viewMode }) => {
                 {ltcgOpportunities.map((inv) => (
                   <tr key={inv.id} style={styles.tr}>
                     <td style={styles.td}>{inv.fundName}</td>
-                    <td style={styles.td}>{inv.buyDate}</td>
+                    <td style={styles.td}>{formatDate(inv.buyDate)}</td>
                     <td style={styles.td}>{inv.holdingPeriodDays} days</td>
                     <td style={styles.td}>{formatCurrency(inv.buyTotalAmount)}</td>
                     <td style={styles.td}>{formatCurrency(inv.finalValue)}</td>
