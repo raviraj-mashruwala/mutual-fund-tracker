@@ -1,10 +1,12 @@
 // src/components/InvestmentForm.js - WITH SCHEME CODE FIELD
 import React, { useState, useEffect, useRef } from 'react';
 
-const InvestmentForm = ({ onSubmit, initialData, onCancel, existingFundNames }) => {
+const InvestmentForm = ({ onSubmit, initialData, onCancel, existingFundNames, existingTags = [] }) => {
   const [formData, setFormData] = useState({
     fundName: '',
     schemeCode: '',  // NEW: AMFI Scheme Code
+    tags: [],        // tokenized array of tags
+    notes: '',
     buyDate: '',
     buyNAV: '',
     quantity: '',
@@ -17,9 +19,18 @@ const InvestmentForm = ({ onSubmit, initialData, onCancel, existingFundNames }) 
 
   const [showFundSuggestions, setShowFundSuggestions] = useState(false);
 
+  // Keep a separate input state for tag typing (autocomplete)
+  const [tagInput, setTagInput] = useState('');
   useEffect(() => {
     if (initialData) {
-      setFormData(initialData);
+      // Normalize incoming initialData: tags may be stored as array in Firestore
+      const normalizedInitial = {
+        ...initialData,
+        tags: Array.isArray(initialData.tags) ? initialData.tags.map(t => t.toString()) : (initialData.tags ? initialData.tags.split(',').map(t => t.trim()) : []),
+        notes: initialData.notes || ''
+      };
+      setFormData(normalizedInitial);
+      setTagInput('');
     }
   }, [initialData]);
 
@@ -82,13 +93,52 @@ const InvestmentForm = ({ onSubmit, initialData, onCancel, existingFundNames }) 
     }
   };
 
+  // Tag helpers
+  const addTag = (tag) => {
+    const t = (tag || '').toString().trim();
+    if (!t) return;
+    setFormData(prev => ({ ...prev, tags: Array.from(new Set([...(prev.tags || []), t])) }));
+    setTagInput('');
+  };
+
+  const removeTag = (tag) => {
+    setFormData(prev => ({ ...prev, tags: (prev.tags || []).filter(t => t !== tag) }));
+  };
+
+  const handleTagInputChange = (e) => {
+    setTagInput(e.target.value);
+  };
+
+  const handleTagKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      const v = tagInput.trim();
+      if (v) addTag(v.replace(/,$/, ''));
+    } else if (e.key === 'Backspace' && !tagInput) {
+      // remove last tag when backspace on empty input
+      setFormData(prev => {
+        const nextTags = (prev.tags || []).slice(0, -1);
+        return { ...prev, tags: nextTags };
+      });
+    }
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSubmit(formData);
+    // Normalize tags (already an array) and trim notes
+    const normalized = {
+      ...formData,
+      tags: Array.isArray(formData.tags) ? formData.tags.map(t => t.trim()).filter(Boolean) : [],
+      notes: formData.notes ? formData.notes.trim() : ''
+    };
+
+    onSubmit(normalized);
     if (!initialData) {
       setFormData({
         fundName: '',
         schemeCode: '',
+        tags: '',
+        notes: '',
         buyDate: '',
         buyNAV: '',
         quantity: '',
@@ -272,6 +322,48 @@ const InvestmentForm = ({ onSubmit, initialData, onCancel, existingFundNames }) 
                 style={{...styles.input, backgroundColor: '#F8FAFB'}}
                 placeholder="Calculated automatically"
                 readOnly
+              />
+            </div>
+            {/* Tags (tokenized multi-select with autocomplete) */}
+            <div style={styles.fieldGroup}>
+              <label style={styles.label}>Tags</label>
+              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                {(formData.tags || []).map((t, idx) => (
+                  <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#F1F6F7', padding: '6px 8px', borderRadius: 8 }}>
+                    <span style={{ fontSize: 13 }}>{t}</span>
+                    <button type="button" onClick={() => removeTag(t)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#A94442' }}>✕</button>
+                  </div>
+                ))}
+                <input
+                  type="text"
+                  name="tagInput"
+                  value={tagInput}
+                  onChange={handleTagInputChange}
+                  onKeyDown={handleTagKeyDown}
+                  placeholder="Type and press Enter (suggestions appear)"
+                  style={{ ...styles.input, minWidth: 160 }}
+                />
+              </div>
+              <small style={styles.smallText}>Select or type tags. Press Enter to add. Suggestions show existing tags.</small>
+
+              {tagInput && (
+                <div style={{ ...styles.suggestions, maxHeight: 140 }}>
+                  {existingTags.filter(t => t.toLowerCase().includes(tagInput.toLowerCase()) && !(formData.tags || []).includes(t)).slice(0, 8).map((s, i) => (
+                    <div key={i} style={styles.suggestionItem} onClick={() => addTag(s)}>{s}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Notes */}
+            <div style={styles.fieldGroup}>
+              <label style={styles.label}>Notes</label>
+              <textarea
+                name="notes"
+                value={formData.notes}
+                onChange={handleChange}
+                style={{...styles.input, minHeight: '80px'}}
+                placeholder="Optional notes about this transaction"
               />
             </div>
           </div>

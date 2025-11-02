@@ -147,6 +147,15 @@ function App() {
   };
 
   const existingFundNames = [...new Set(investments.map(inv => inv.fundName))];
+  // Collect existing tags from investments (normalize arrays/strings)
+  const existingTags = Array.from(new Set(
+    investments.flatMap(inv => {
+      if (!inv) return [];
+      if (Array.isArray(inv.tags)) return inv.tags.map(t => (t || '').toString().trim()).filter(Boolean);
+      if (typeof inv.tags === 'string') return inv.tags.split(',').map(t => t.trim()).filter(Boolean);
+      return [];
+    })
+  ));
 
   // Compute portfolio metrics (this will count only active holdings)
   const portfolioMetrics = calculatePortfolioMetrics(investments);
@@ -610,11 +619,12 @@ function App() {
       {/* Investment Form Modal */}
       {showForm && (
         <InvestmentForm
-          onSubmit={editingInvestment ? handleUpdateInvestment : handleAddInvestment}
-          initialData={editingInvestment}
-          onCancel={handleCancelForm}
-          existingFundNames={existingFundNames}
-        />
+            onSubmit={editingInvestment ? handleUpdateInvestment : handleAddInvestment}
+            initialData={editingInvestment}
+            onCancel={handleCancelForm}
+            existingFundNames={existingFundNames}
+            existingTags={existingTags}
+          />
       )}
     </div>
   );

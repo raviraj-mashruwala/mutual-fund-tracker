@@ -1,9 +1,11 @@
 // src/components/InvestmentTable.js - REFINED WINTER CHILL DESIGN
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { calculateMetrics } from '../utils/calculations';
 import { formatDate } from '../utils/dateFormatter';
 
 const InvestmentTable = ({ investments, onEdit, onDelete }) => {
+  const [tagFilter, setTagFilter] = useState('');
+  const [textFilter, setTextFilter] = useState('');
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
@@ -12,11 +14,47 @@ const InvestmentTable = ({ investments, onEdit, onDelete }) => {
     }).format(value);
   };
 
-  const investmentsWithMetrics = investments.map(calculateMetrics);
+  const investmentsWithMetrics = useMemo(() => investments.map(calculateMetrics), [investments]);
+
+  // Apply tag/text filters locally for the table view
+  const filteredInvestments = useMemo(() => {
+    return investmentsWithMetrics.filter(inv => {
+      // Tag filter matches if any tag includes the filter text (case-insensitive)
+      if (tagFilter) {
+        const f = tagFilter.toLowerCase();
+        const tags = (inv.tags || []).map(t => String(t).toLowerCase());
+        if (!tags.some(t => t.includes(f))) return false;
+      }
+
+      if (textFilter) {
+        const f = textFilter.toLowerCase();
+        const combined = `${inv.fundName} ${inv.notes || ''} ${inv.schemeCode || ''}`.toLowerCase();
+        if (!combined.includes(f)) return false;
+      }
+
+      return true;
+    });
+  }, [investmentsWithMetrics, tagFilter, textFilter]);
 
   return (
     <div style={styles.container}>
       <h3 style={styles.title}>Investment Entries</h3>
+      <div style={styles.filterBar}>
+        <input
+          type="text"
+          placeholder="Filter by tag (e.g. SIP)"
+          value={tagFilter}
+          onChange={(e) => setTagFilter(e.target.value)}
+          style={styles.filterInput}
+        />
+        <input
+          type="text"
+          placeholder="Search fund name, notes or scheme code"
+          value={textFilter}
+          onChange={(e) => setTextFilter(e.target.value)}
+          style={styles.filterInput}
+        />
+      </div>
       <div style={styles.tableWrapper}>
         <table style={styles.table}>
           <thead>
@@ -32,17 +70,19 @@ const InvestmentTable = ({ investments, onEdit, onDelete }) => {
               <th style={styles.th}>P&L</th>
               <th style={styles.th}>P&L %</th>
               <th style={styles.th}>CAGR</th>
+              <th style={styles.th}>Tags</th>
+              <th style={styles.th}>Notes</th>
               <th style={styles.th}>Decision</th>
               <th style={styles.th}>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {investmentsWithMetrics.length === 0 ? (
+            {filteredInvestments.length === 0 ? (
               <tr>
-                <td colSpan="13" style={styles.noData}>No investments found. Add your first investment!</td>
+                <td colSpan="15" style={styles.noData}>No investments found. Add your first investment!</td>
               </tr>
             ) : (
-              investmentsWithMetrics.map((inv) => (
+              filteredInvestments.map((inv) => (
                 <tr key={inv.id} style={styles.row}>
                   <td style={styles.td}>{inv.fundName}</td>
                   <td style={styles.td}>{formatDate(inv.buyDate)}</td>
@@ -73,6 +113,12 @@ const InvestmentTable = ({ investments, onEdit, onDelete }) => {
                     {inv.netProfitLossPercent.toFixed(2)}%
                   </td>
                   <td style={styles.td}>{inv.cagr.toFixed(2)}%</td>
+                  <td style={styles.td}>
+                    {(inv.tags || []).map((t, i) => (
+                      <span key={i} style={styles.tagBadge}>{t}</span>
+                    ))}
+                  </td>
+                  <td style={{...styles.td, maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis'}} title={inv.notes || ''}>{inv.notes || '-'}</td>
                   <td style={{
                     ...styles.td,
                     color: inv.decisionToSell === 'You can Sell' ? '#6BC4A6' : 
@@ -112,6 +158,19 @@ const styles = {
   },
   tableWrapper: {
     overflowX: 'auto'
+  },
+  filterBar: {
+    display: 'flex',
+    gap: '8px',
+    marginBottom: '12px',
+    alignItems: 'center'
+  },
+  filterInput: {
+    padding: '8px 10px',
+    border: '1px solid #E8EDED',
+    borderRadius: '8px',
+    fontSize: '14px',
+    minWidth: '200px'
   },
   table: {
     width: '100%',
@@ -172,6 +231,17 @@ const styles = {
     fontWeight: '500',
     cursor: 'pointer',
     transition: 'all 0.2s ease'
+  }
+  ,
+  tagBadge: {
+    display: 'inline-block',
+    background: '#F1F8F7',
+    color: '#2C3E40',
+    padding: '4px 8px',
+    borderRadius: '12px',
+    fontSize: '12px',
+    marginRight: '6px',
+    marginBottom: '4px'
   }
 };
 

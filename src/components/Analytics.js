@@ -1,12 +1,27 @@
 // src/components/Analytics.js - REFINED WINTER CHILL DESIGN
-import React from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { calculateMetrics, calculateFundMetrics, calculatePortfolioMetrics } from '../utils/calculations';
 import { formatDate } from '../utils/dateFormatter';
+import {
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip as ReTooltip,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  LineChart,
+  Line
+} from 'recharts';
 
 const Analytics = ({ investments, viewMode }) => {
-  const portfolioMetrics = calculatePortfolioMetrics(investments);
-  const fundMetrics = calculateFundMetrics(investments);
-  const investmentsWithMetrics = investments.map(calculateMetrics);
+  // Memoize derived metrics so they only change when `investments` changes.
+  const portfolioMetrics = useMemo(() => calculatePortfolioMetrics(investments), [investments]);
+  const fundMetrics = useMemo(() => calculateFundMetrics(investments), [investments]);
+  const investmentsWithMetrics = useMemo(() => investments.map(calculateMetrics), [investments]);
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('en-IN', {
@@ -22,15 +37,103 @@ const Analytics = ({ investments, viewMode }) => {
 
   const sortedByReturn = [...investmentsWithMetrics].sort((a, b) => b.netProfitLossPercent - a.netProfitLossPercent);
   const topPerformers = sortedByReturn.slice(0, 5);
-  const worstPerformers = sortedByReturn.slice(-5).reverse();
 
   const ltcgOpportunities = investmentsWithMetrics.filter(inv => 
     !inv.sellDate && inv.eligibleForLTCG === 'Yes' && inv.netProfitLossPercent > 10
   );
 
-  const sortedFunds = [...fundMetrics].sort((a, b) => b.totalReturnPercent - a.totalReturnPercent);
+  const sortedFunds = useMemo(() => [...fundMetrics].sort((a, b) => b.totalReturnPercent - a.totalReturnPercent), [fundMetrics]);
   // Only include funds that have active holdings (holdingsCount > 0)
-  const sortedActiveFunds = sortedFunds.filter((f) => f.holdingsCount > 0);
+  const sortedActiveFunds = useMemo(() => sortedFunds.filter((f) => f.holdingsCount > 0), [sortedFunds]);
+
+  const timeseriesData = useMemo(() => {
+    // Build timeseries by grouping by buyDate and accumulating invested/current values
+    const byDate = {};
+    investmentsWithMetrics.forEach(inv => {
+      const date = formatDate(inv.buyDate); // human formatted
+      if (!byDate[date]) byDate[date] = { date, invested: 0, current: 0 };
+      byDate[date].invested += Number(inv.buyTotalAmount || 0);
+      // approximate current value using finalValue or currentNAV*quantity
+      const currentVal = Number(inv.finalValue || (inv.currentNAV * inv.quantity) || 0);
+      byDate[date].current += currentVal;
+    });
+
+    const sorted = Object.values(byDate).sort((a, b) => new Date(a.date) - new Date(b.date));
+    // cumulative sums
+    let cumInvested = 0;
+    let cumCurrent = 0;
+    return sorted.map(row => {
+      cumInvested += row.invested;
+      cumCurrent += row.current;
+      return { date: row.date, invested: cumInvested, current: cumCurrent };
+    });
+  }, [investmentsWithMetrics]);
+
+  // Legend state for responsive/show-more behavior
+  const [legendExpanded, setLegendExpanded] = useState(false);
+  const legendLimit = 6;
+  const legendItems = sortedActiveFunds;
+  const showLegendToggle = legendItems.length > legendLimit;
+  const visibleLegendItems = legendExpanded ? legendItems : legendItems.slice(0, legendLimit);
+
+  // Visibility state for interactive legend: which funds are visible/highlighted
+  const [visibleFundNames, setVisibleFundNames] = useState(() => new Set());
+
+  useEffect(() => {
+    // On fund list change, rehydrate from localStorage if present, otherwise default to all funds.
+    const allNames = sortedActiveFunds.map(f => f.fundName);
+    try {
+      const raw = localStorage.getItem('mf_visibleFunds');
+      if (raw) {
+        const stored = JSON.parse(raw);
+        if (Array.isArray(stored)) {
+          // only keep stored names that still exist
+          const allowed = new Set(allNames);
+          const next = new Set(stored.filter(n => allowed.has(n)));
+          if (next.size) {
+            setVisibleFundNames(next);
+            return;
+          }
+        }
+      }
+    } catch (e) {
+      // ignore and fall back
+    }
+    setVisibleFundNames(new Set(allNames));
+  }, [sortedActiveFunds]);
+
+  const toggleFundVisibility = (fundName) => {
+    // Toggle and log for debugging
+    setVisibleFundNames(prev => {
+      const next = new Set(prev);
+      if (next.has(fundName)) next.delete(fundName); else next.add(fundName);
+      try {
+        localStorage.setItem('mf_visibleFunds', JSON.stringify([...next]));
+      } catch (e) {
+        // ignore storage errors
+      }
+      return next;
+    });
+  };
+
+  const colors = ['#64B5F6', '#6BC4A6', '#93B1B5', '#4F7C82', '#B8E3E9', '#FFB74D'];
+
+  // Build chart data arrays that include visibility so Recharts sees data changes
+  const pieData = sortedActiveFunds.map((f, idx) => ({
+    name: f.fundName,
+    value: f.currentValue,
+    fundName: f.fundName,
+    color: colors[idx % colors.length],
+    isVisible: visibleFundNames.has(f.fundName)
+  }));
+
+  const barData = sortedActiveFunds.slice(0, 8).map((f, idx) => ({
+    fundName: f.fundName,
+    name: f.fundName,
+    value: f.currentValue,
+    color: colors[idx % colors.length],
+    isVisible: visibleFundNames.has(f.fundName)
+  }));
 
   return (
     <div style={styles.analytics}>
@@ -163,53 +266,97 @@ const Analytics = ({ investments, viewMode }) => {
       {sortedActiveFunds.length > 0 && (
         <div style={styles.section}>
           <h3 style={styles.sectionTitle}>Fund-wise Performance Summary</h3>
-          <div style={styles.fundCardsGrid}>
-            {sortedActiveFunds.map((fund, idx) => (
-              <div key={fund.fundName} style={styles.fundCard}>
-                <div style={styles.fundCardHeader}>
-                  <div style={styles.fundRank}>#{idx + 1}</div>
-                  <div style={styles.fundCardTitle}>{fund.fundName}</div>
+          {/* Analytics charts: allocation pie, top funds bar chart, portfolio value over time */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            {/* Allocation Pie */}
+            <div style={{ minHeight: 260 }}>
+              <h4 style={{ marginTop: 0, marginBottom: 12 }}>Fund Allocation</h4>
+              {/* Allocation visualization */}
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie
+                    data={pieData}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    innerRadius={40}
+                    paddingAngle={2}
+                    label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+                  >
+                    {pieData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} fillOpacity={entry.isVisible ? 1 : 0.08} />
+                    ))}
+                  </Pie>
+                  <ReTooltip formatter={(value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(value)} />
+                </PieChart>
+              </ResponsiveContainer>
+              {/* Custom legend below the chart to avoid overlapping the next section */}
+              <div style={styles.pieLegend}>
+                <div style={styles.pieLegendGrid}>
+                  {visibleLegendItems.map((entry, index) => {
+                    const origIndex = sortedActiveFunds.findIndex(f => f.fundName === entry.fundName);
+                    const color = colors[origIndex % colors.length];
+                    const isVisible = visibleFundNames.has(entry.fundName);
+                    return (
+                      <div
+                        key={`legend-${index}`}
+                        style={{ ...styles.pieLegendItem, cursor: 'pointer', opacity: isVisible ? 1 : 0.45 }}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => toggleFundVisibility(entry.fundName)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleFundVisibility(entry.fundName); }}
+                      >
+                        <span style={{ ...styles.pieSwatch, background: color, opacity: isVisible ? 1 : 0.45 }} />
+                        <span style={styles.pieLegendLabel}>{entry.fundName}</span>
+                        <span style={styles.pieLegendValue}>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(entry.currentValue)}</span>
+                      </div>
+                    );
+                  })}
                 </div>
-                <div style={styles.fundCardBody}>
-                  <div style={styles.fundMetricRow}>
-                    <span>Investment:</span>
-                    <span style={styles.fundMetricValue}>{formatCurrency(fund.totalInvestment)}</span>
+                {showLegendToggle && (
+                  <div style={{ textAlign: 'center', marginTop: 8 }}>
+                    <button style={styles.legendToggleButton} onClick={() => setLegendExpanded(!legendExpanded)}>
+                      {legendExpanded ? 'Show less' : `Show ${legendItems.length - legendLimit} more`}
+                    </button>
                   </div>
-                  <div style={styles.fundMetricRow}>
-                    <span>Current Value:</span>
-                    <span style={styles.fundMetricValue}>{formatCurrency(fund.currentValue)}</span>
-                  </div>
-                  <div style={styles.fundMetricRow}>
-                    <span>Total P&L:</span>
-                    <span style={{
-                      ...styles.fundMetricValue,
-                      color: fund.totalProfitLoss >= 0 ? '#6BC4A6' : '#E57373',
-                      fontWeight: '700'
-                    }}>
-                      {formatCurrency(fund.totalProfitLoss)}
-                    </span>
-                  </div>
-                  <div style={styles.fundMetricRow}>
-                    <span>Return:</span>
-                    <span style={{
-                      ...styles.fundMetricValue,
-                      color: fund.totalReturnPercent >= 0 ? '#6BC4A6' : '#E57373',
-                      fontWeight: '700'
-                    }}>
-                      {formatPercent(fund.totalReturnPercent)}
-                    </span>
-                  </div>
-                  <div style={styles.fundMetricRow}>
-                    <span>Avg CAGR:</span>
-                    <span style={styles.fundMetricValue}>{fund.avgCAGR.toFixed(2)}%</span>
-                  </div>
-                  <div style={styles.fundMetricRow}>
-                    <span>Holdings:</span>
-                    <span style={styles.fundMetricValue}>{fund.holdingsCount}</span>
-                  </div>
-                </div>
+                )}
               </div>
-            ))}
+            </div>
+
+            {/* Top Funds Bar Chart */}
+            <div style={{ minHeight: 260 }}>
+              <h4 style={{ marginTop: 0, marginBottom: 12 }}>Top Funds by Current Value</h4>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={barData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                  <YAxis />
+                  <ReTooltip formatter={(value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(value)} />
+                  <Bar dataKey="value">
+                    {barData.map((d, idx) => (
+                      <Cell key={`barcell-${idx}`} fill={d.color} fillOpacity={d.isVisible ? 1 : 0.08} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Portfolio value over time: derive simple timeseries from buy dates */}
+          <div style={{ marginTop: 16 }}>
+            <h4 style={{ marginTop: 0, marginBottom: 12 }}>Portfolio Value Over Time (approx)</h4>
+            <ResponsiveContainer width="100%" height={260}>
+              <LineChart data={timeseriesData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis />
+                <ReTooltip formatter={(value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(value)} />
+                <Line type="monotone" dataKey="current" stroke="#6BC4A6" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="invested" stroke="#64B5F6" strokeWidth={2} strokeDasharray="4 3" dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
         </div>
       )}
@@ -367,6 +514,54 @@ const styles = {
   fundMetricValue: {
     fontWeight: '600',
     color: '#2C3E40'
+  }
+  ,
+  pieLegend: {
+    marginTop: 12,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+    paddingRight: '8px'
+  },
+  pieLegendGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    gap: '8px',
+    maxHeight: '120px',
+    overflowY: 'auto'
+  },
+  pieLegendItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    fontSize: '13px',
+    color: '#2C3E40'
+  },
+  pieSwatch: {
+    width: '12px',
+    height: '12px',
+    borderRadius: '3px',
+    display: 'inline-block'
+  },
+  pieLegendLabel: {
+    flex: '1 1 auto',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis'
+  },
+  pieLegendValue: {
+    color: '#5A6D70',
+    fontSize: '13px',
+    marginLeft: '8px'
+  }
+  ,
+  legendToggleButton: {
+    background: 'none',
+    border: '1px solid #E8EDED',
+    padding: '6px 12px',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    color: '#0B2E33'
   }
 };
 

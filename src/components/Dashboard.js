@@ -1,6 +1,7 @@
 // src/components/Dashboard.js - REFINED WINTER CHILL DESIGN
 import React from 'react';
 import { calculatePortfolioMetrics, calculateFundMetrics } from '../utils/calculations';
+// AllocationChart moved to Analytics (uses Recharts)
 
 const Dashboard = ({ investments, viewMode }) => {
   const portfolioMetrics = calculatePortfolioMetrics(investments);
@@ -137,8 +138,6 @@ const Dashboard = ({ investments, viewMode }) => {
           <h3 style={styles.sectionTitle}>Fund Allocation</h3>
           <div style={styles.allocationContainer}>
             {(() => {
-              // fundMetrics now has holdingsCount representing active (not-sold) entries,
-              // so simply filter funds with any active holdings.
               const activeFunds = fundMetrics.filter(f => f.holdingsCount > 0);
               if (activeFunds.length === 0) {
                 return (
