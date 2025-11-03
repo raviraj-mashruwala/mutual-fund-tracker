@@ -162,6 +162,19 @@ export const getPortfolioNavHistory = async (userInvestments, startDate, endDate
 // Auto-store NAV when investments are added/updated
 export const updateNavHistoryForInvestment = async (investment) => {
   try {
+    // Don't store NAV for investments that are fully sold or have zero holdings.
+    // Investment fields from the app: quantity, sellDate, sellQuantity (may be strings).
+    const quantity = investment.quantity !== undefined ? parseFloat(investment.quantity) : NaN;
+    const sellQuantity = investment.sellQuantity !== undefined ? parseFloat(investment.sellQuantity) : 0;
+
+    const isZeroHolding = isNaN(quantity) || quantity === 0;
+    const isFullySold = !!investment.sellDate && !isNaN(quantity) && !isNaN(sellQuantity) && sellQuantity >= quantity;
+
+    if (isZeroHolding || isFullySold) {
+      console.log(`Skipping NAV store for ${investment.schemeCode || investment.fundName} - fully sold or zero holdings.`);
+      return;
+    }
+
     if (investment.currentNAV && investment.currentNAVDate && investment.schemeCode) {
       await storeNavHistory(
         investment.schemeCode,
