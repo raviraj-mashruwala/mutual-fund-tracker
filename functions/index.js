@@ -350,7 +350,7 @@ exports.manualUpdateNAV = functions.https.onRequest(async (req, res) => {
 
 // Scheduled update
 exports.scheduledNavUpdate = functions.pubsub
-  .schedule('0 18 * * 1-5')
+  .schedule('50 23 * * 1-5')
   .timeZone('Asia/Kolkata')
   .onRun(async (context) => {
     try {
