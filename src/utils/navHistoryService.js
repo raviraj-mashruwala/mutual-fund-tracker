@@ -162,13 +162,16 @@ export const getPortfolioNavHistory = async (userInvestments, startDate, endDate
 // Auto-store NAV when investments are added/updated
 export const updateNavHistoryForInvestment = async (investment) => {
   try {
-    // Don't store NAV for investments that are fully sold or have zero holdings.
-    // Investment fields from the app: quantity, sellDate, sellQuantity (may be strings).
-    const quantity = investment.quantity !== undefined ? parseFloat(investment.quantity) : NaN;
-    const sellQuantity = investment.sellQuantity !== undefined ? parseFloat(investment.sellQuantity) : 0;
+    // Don't store NAV for investments that are fully sold or have explicitly zero holdings.
+    // Be careful: missing/NaN quantities should NOT block NAV storage.
+    const hasQuantity = investment.quantity !== undefined && investment.quantity !== null && investment.quantity !== '' && !isNaN(parseFloat(investment.quantity));
+    const quantity = hasQuantity ? parseFloat(investment.quantity) : null;
 
-    const isZeroHolding = isNaN(quantity) || quantity === 0;
-    const isFullySold = !!investment.sellDate && !isNaN(quantity) && !isNaN(sellQuantity) && sellQuantity >= quantity;
+    const hasSellQuantity = investment.sellQuantity !== undefined && investment.sellQuantity !== null && investment.sellQuantity !== '' && !isNaN(parseFloat(investment.sellQuantity));
+    const sellQuantity = hasSellQuantity ? parseFloat(investment.sellQuantity) : null;
+
+    const isZeroHolding = hasQuantity && quantity === 0;
+    const isFullySold = !!investment.sellDate && hasQuantity && hasSellQuantity && sellQuantity >= quantity;
 
     if (isZeroHolding || isFullySold) {
       console.log(`Skipping NAV store for ${investment.schemeCode || investment.fundName} - fully sold or zero holdings.`);
