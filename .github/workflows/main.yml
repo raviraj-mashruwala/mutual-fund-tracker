@@ -62,7 +62,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18'
+          node-version: '20'
 
       - name: Install functions dependencies
         run: npm ci
@@ -74,4 +74,4 @@ jobs:
       - name: Deploy Cloud Functions
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-        run: npx firebase-tools deploy --only functions --token "$FIREBASE_TOKEN"
+        run: npx firebase-tools deploy --only functions --project mutual-fund-tracker-d93c4 --token "$FIREBASE_TOKEN"
