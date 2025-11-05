@@ -6,6 +6,7 @@ import { useTheme } from './contexts/ThemeContext';
 import Dashboard from './components/Dashboard';
 import Analytics from './components/Analytics';
 import NavHistory from './components/NavHistory';
+import Tax from './components/Tax';
 import InvestmentForm from './components/InvestmentForm';
 import InvestmentTable from './components/InvestmentTable';
 import GroupedInvestmentView from './components/GroupedInvestmentView';
@@ -527,7 +528,7 @@ function App() {
         </div>
       )}
 
-      {/* Navigation Tabs - INCLUDING NAV HISTORY */}
+      {/* Navigation Tabs - INCLUDING NAV HISTORY & TAX */}
       <div style={styles.navContainer}>
         <div style={styles.navTabs}>
           <button
@@ -558,6 +559,13 @@ function App() {
             <span style={styles.tabIcon}>📋</span>
             <span>NAV History</span>
           </button>
+          <button
+            style={{...styles.navTab, ...(activeTab === 'tax' ? styles.navTabActive : {})}}
+            onClick={() => setActiveTab('tax')}
+          >
+            <span style={styles.tabIcon}>🧾</span>
+            <span>Tax</span>
+          </button>
         </div>
       </div>
 
@@ -569,6 +577,8 @@ function App() {
           <Analytics investments={investments} viewMode={viewMode} />
         ) : activeTab === 'navHistory' ? (
           <NavHistory investments={investments} />
+        ) : activeTab === 'tax' ? (
+          <Tax investments={investments} />
         ) : (
           <>
             {/* Controls */}
